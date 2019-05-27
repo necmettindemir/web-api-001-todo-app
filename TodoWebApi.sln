@@ -3,11 +3,16 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.28010.2046
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TodoWebApi", "TodoWebApi\TodoWebApi.csproj", "{7B9A5B3D-2906-4161-9293-3731A558B222}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TodoWebApi", "TodoWebApi\TodoWebApi.csproj", "{7B9A5B3D-2906-4161-9293-3731A558B222}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TodoDB", "TodoDB\TodoDB.csproj", "{649B7640-75CF-4886-8282-AFCD77F20A12}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TodoDB", "TodoDB\TodoDB.csproj", "{649B7640-75CF-4886-8282-AFCD77F20A12}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TodoXUnitTest", "TodoXUnitTest\TodoXUnitTest.csproj", "{72B5D46A-D5FB-49AF-9413-8146B323DD38}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TodoXUnitTest", "TodoXUnitTest\TodoXUnitTest.csproj", "{72B5D46A-D5FB-49AF-9413-8146B323DD38}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{B8E892EE-FECB-4DE6-A737-59EE8D5DC024}"
+	ProjectSection(SolutionItems) = preProject
+		ReadMe.txt = ReadMe.txt
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
