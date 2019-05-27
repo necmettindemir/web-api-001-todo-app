@@ -6,13 +6,7 @@ Properties
 
 3) Swagger has been used for documentation
 
-4) DI has been performed. Working with MSSQL|MYSQL|ORACLE|etc is possible..
-   
-   To perfoms parametrized DI on non-API apps install from nuget :  Microsoft.Extensions.DependencyInjection
-
-   Register this service in startup
-
-   exp :  services.AddTransient<IAuthRepo>(s => new AuthRepoMSSQL(ConnectionString, SecretKey)); 
+4) DI has been performed. Working with MSSQL|MYSQL|ORACLE|etc is possible..     
 
 5) AutoMapper has been used in many Model-2-DTO conversions
 
