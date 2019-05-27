@@ -26,28 +26,6 @@ Properties
 
 --------
 
-login test 
-
-{
-"Email":"deneme@deneme.com",
-"Password":"123",
-"LanguageCode":"EN"
-}
-
-----
-
-register test
-
-{
- "Email":"deneme@deneme.com",
- "Password":"123",        
- "FirstName":"Ahmet",
- "LastName":"Çelik",
- "City":"Çankırı-elazığ",
- "CountryId":"1"
-}
-
------
 
 
 

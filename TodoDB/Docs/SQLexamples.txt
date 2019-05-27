@@ -1942,3 +1942,31 @@ select T60.* from
 		 where 1=1 
 	) T50
 ) T60 where rnum>4 and rnum<=6
+
+
+------------------
+
+
+
+login test 
+
+{
+"Email":"deneme@deneme.com",
+"Password":"123",
+"LanguageCode":"EN"
+}
+
+----
+
+register test
+
+{
+ "Email":"deneme@deneme.com",
+ "Password":"123",        
+ "FirstName":"Ahmet",
+ "LastName":"Çelik",
+ "City":"Çankırı-elazığ",
+ "CountryId":"1"
+}
+
+-----

@@ -1,0 +1,555 @@
+﻿
+cretate mssql database with name TodoDB
+
+
+----------------
+
+USE [TodoDB]
+GO
+
+/****** Object:  Table [dbo].[Users]    Script Date: 27.05.2019 22:24:42 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Users](
+	[UserId] [int] NOT NULL,
+	[Email] [nvarchar](50) NULL,
+	[PasswordHash] [nvarchar](2000) NULL,
+	[FirstName] [nchar](10) NULL,
+	[LastName] [nvarchar](50) NULL,
+	[City] [nvarchar](50) NULL,
+	[CountryId] [int] NULL,
+ CONSTRAINT [PK_Users] PRIMARY KEY CLUSTERED 
+(
+	[UserId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+
+GO
+
+-----------------
+
+USE [TodoDB]
+GO
+
+/****** Object:  Table [dbo].[Todo]    Script Date: 27.05.2019 22:27:01 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Todo](
+	[TodoId] [int] NOT NULL,
+	[UserId] [int] NULL,
+	[TodoTypeId] [int] NULL,
+	[TodoStateId] [int] NULL CONSTRAINT [DF_Todo_TodoStateId]  DEFAULT ((2)),
+	[TodoHeader] [nvarchar](50) NULL,
+	[TodoText] [nvarchar](1000) NULL,
+	[TodoDate] [datetime] NULL,
+	[CreateDate] [datetime] NULL,
+ CONSTRAINT [PK_Todo] PRIMARY KEY CLUSTERED 
+(
+	[TodoId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+
+GO
+
+
+
+-----------------
+
+USE [TodoDB]
+GO
+
+/****** Object:  Table [dbo].[TodoState]    Script Date: 27.05.2019 22:27:14 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[TodoState](
+	[TodoStateId] [int] IDENTITY(1,1) NOT NULL,
+	[TodoState] [nvarchar](50) NULL,
+ CONSTRAINT [PK_TodoState] PRIMARY KEY CLUSTERED 
+(
+	[TodoStateId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+
+GO
+
+
+
+
+-----------------
+
+USE [TodoDB]
+GO
+
+/****** Object:  Table [dbo].[TodoType]    Script Date: 27.05.2019 22:27:22 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[TodoType](
+	[TodoTypeId] [int] IDENTITY(1,1) NOT NULL,
+	[TodoType] [nvarchar](50) NULL,
+ CONSTRAINT [PK_TodoType] PRIMARY KEY CLUSTERED 
+(
+	[TodoTypeId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+
+GO
+
+
+
+
+-----------------
+
+
+USE [TodoDB]
+GO
+
+/****** Object:  Table [dbo].[Country]    Script Date: 27.05.2019 22:27:33 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Country](
+	[CountryId] [int] IDENTITY(1,1) NOT NULL,
+	[CountryName] [nvarchar](50) NULL,
+ CONSTRAINT [PK_Country] PRIMARY KEY CLUSTERED 
+(
+	[CountryId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+
+GO
+
+
+
+
+-----------------
+
+
+USE [TodoDB]
+GO
+
+/****** Object:  StoredProcedure [dbo].[RegisterOrSaveUser]    Script Date: 27.05.2019 22:27:54 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROCEDURE [dbo].[RegisterOrSaveUser]	
+	  @UserId int,
+	  @Email nvarchar(50),
+      @PasswordHash nvarchar(2000),
+      @FirstName nvarchar(50),
+      @LastName nvarchar(50),
+      @City nvarchar(50),
+      @CountryId int
+AS
+BEGIN
+
+	declare @vnmUserId int	
+	
+	SET NOCOUNT ON;
+    
+	if (@UserId = 0)
+	begin
+		
+		SET @vnmUserId = NEXT VALUE FOR SEQ_USERS
+
+		insert into Users(
+				  UserId,
+				  Email,
+				  PasswordHash,
+				  FirstName,
+				  LastName,
+				  City,
+				  CountryId)
+		values(
+				  @vnmUserId,
+				  @Email,
+				  @PasswordHash,
+				  @FirstName,
+				  @LastName,
+				  @City,
+				  @CountryId)
+		
+	end
+	else
+	begin
+
+		SET @vnmUserId = @UserId
+		
+		update Users
+		set 			
+			Email		= @Email,			
+			FirstName	= @FirstName,
+			LastName	= @LastName,
+			City		= @City,
+			CountryId	= @CountryId	
+		where UserId = @vnmUserId
+
+	end
+
+	SELECT top 1 * from Users where UserId = @vnmUserId
+
+END
+
+GO
+
+
+-----------------
+
+USE [TodoDB]
+GO
+
+/****** Object:  StoredProcedure [dbo].[TodoSave]    Script Date: 27.05.2019 22:28:12 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROCEDURE [dbo].[TodoSave]	
+
+	@TodoId int,
+    @UserId int,
+    @TodoTypeId int,
+    @TodoStateId int,
+    @TodoHeader nvarchar(100),
+    @TodoText nvarchar(2000),
+    @TodoDateStr nvarchar(50),
+	@LanguageCode varchar(10)
+
+AS
+BEGIN
+	
+	SET NOCOUNT ON;
+
+	DECLARE @vnmTodoId int,
+			@vdtTodoDate datetime,
+			@vnmResultCode int,
+			@vchResultMeessage nvarchar(2000)
+	
+	------------------------------- step 1 - date conversion -----------------------
+	BEGIN TRY
+
+			----date format should be 120 code in MSSQL --> yyyy-mm-dd HH:mi:ss 
+			----exp : '2016-09-21 13:33:55'			
+			SET @vdtTodoDate  = [dbo].[fncGetDateFromStr](@TodoDateStr)
+
+	END TRY
+	BEGIN CATCH
+
+			SET @vnmResultCode  = -10
+			SET @vchResultMeessage  = 'date format error!'
+
+			select 1 
+
+			select @vnmResultCode     as ResultCode,
+				   @vchResultMeessage as ResultMessage
+
+			RETURN 
+
+	END CATCH
+	------------------------------- /step 1 - date conversion -----------------------
+
+
+
+
+	------------------------------- step 2 - INSERT or UPD operation -----------------------
+	BEGIN TRY
+
+			-- suppose there are meny CRUD operations
+			BEGIN TRANSACTION t1
+
+					if (@TodoId = 0)
+					begin
+		
+						SET @vnmTodoId = NEXT VALUE FOR SEQ_TODO
+
+						insert into Todo(
+									TodoId,
+									UserId,
+									TodoTypeId,
+									TodoStateId,
+									TodoHeader,
+									TodoText,
+									TodoDate,
+									[CreateDate]
+								  )
+						values(
+									@vnmTodoId,
+									@UserId,
+									@TodoTypeId,
+									@TodoStateId,
+									@TodoHeader,
+									@TodoText,
+									@vdtTodoDate,
+									getdate()
+								  )
+
+						SET @vnmResultCode  = 1 --> 1 : INSERT
+
+					end
+					else
+					begin
+
+						SET @vnmTodoId = @TodoId
+		
+						update Todo
+						set 						 					
+									TodoTypeId = @TodoTypeId,
+									TodoStateId = @TodoStateId,
+									TodoHeader = @TodoHeader,
+									TodoText = @TodoText,
+									TodoDate = @vdtTodoDate
+						
+						where TodoId = @vnmTodoId
+
+						SET @vnmResultCode  = 2 --> 2 : UPDATE
+
+					end
+
+									
+			COMMIT transaction t1
+
+			SET @vchResultMeessage  = 'OK'
+
+			SELECT 
+				top 1 T.*,
+					  [dbo].[fncGetFormattedDateAsStr](T.TodoDate,'dd/mm/yyyy HH24:mi:ss') as TodoDateStr,
+					  TS.TodoState,
+					  TT.TodoType
+			from Todo T, TodoState TS, TodoType TT
+			where 
+			T.TodoId = @vnmTodoId
+			and T.TodoStateId = TS.TodoStateId
+			and T.TodoTypeId = TT.TodoTypeId
+
+			select @vnmResultCode     as ResultCode,
+				   @vchResultMeessage as ResultMessage
+
+	END TRY
+	BEGIN CATCH
+
+			-- Transaction uncommittable
+			IF (XACT_STATE()) = -1
+				ROLLBACK TRANSACTION t1
+ 
+			-- Transaction committable
+			IF (XACT_STATE()) = 1
+				COMMIT TRANSACTION t1
+
+
+			SET @vnmResultCode  = -10
+			SET @vchResultMeessage  = 'insert/upd error ' + cast(ERROR_NUMBER() as nvarchar(50)) +  ' ' + ERROR_MESSAGE()
+
+			select 1 
+
+			select 
+				@vnmResultCode     as ResultCode,
+				@vchResultMeessage as ResultMessage
+
+	END CATCH
+	
+	------------------------------- /step 2 - INSERT or UPD operation -----------------------
+
+
+
+END
+
+GO
+
+
+
+-----------------
+
+USE [TodoDB]
+GO
+
+/****** Object:  UserDefinedFunction [dbo].[fncGetDateFromStr]    Script Date: 27.05.2019 22:28:27 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+ CREATE  FUNCTION [dbo].[fncGetDateFromStr](@vch_date_str nvarchar(50))
+RETURNS datetime
+AS
+BEGIN
+	
+	DECLARE @vdt_date datetime
+		
+	if (@vch_date_str!='')
+		--SET @vdt_date = Convert(datetime,'2016-09-21 13:33:55',120) 
+		SET @vdt_date = Convert(datetime,@vch_date_str,120) 
+	else
+		SET @vdt_date = null
+
+	
+	RETURN @vdt_date
+
+END
+
+GO
+
+
+
+
+-----------------
+
+USE [TodoDB]
+GO
+
+/****** Object:  UserDefinedFunction [dbo].[fncGetFormattedDateAsStr]    Script Date: 27.05.2019 22:28:35 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+create FUNCTION [dbo].[fncGetFormattedDateAsStr]
+(
+   
+	@pdt_DATE			datetime,
+	@pch_FORMAT			nvarchar(50)
+)
+RETURNS nvarchar(50)
+AS
+
+BEGIN
+	
+	declare
+		@vnm_DATE_DAY		int,
+		@vnm_DATE_MONTH		int,
+		@vnm_DATE_YEAR		int,
+		@vnm_DATE_HOUR		int,
+		@vnm_DATE_MIN		int,
+		@vnm_DATE_SEC		int,
+
+		@vch_DATE_DAY		nvarchar(10),
+		@vch_DATE_MONTH		nvarchar(10),
+		@vch_ADTE_YEAR		nvarchar(10),
+		@vch_DATE_HOUR		nvarchar(10),
+		@vch_DATE_MIN		nvarchar(10),
+		@vch_DATE_SEC		nvarchar(10),
+		
+		@vch_TARIH_FORMATLI	nvarchar(50)
+
+
+	SET @vch_TARIH_FORMATLI = ''
+
+	if (@pdt_DATE is not null)
+	begin
+		SET @vnm_DATE_DAY	= DATEPART(DAY, @pdt_DATE)
+		SET @vnm_DATE_MONTH	= DATEPART(MONTH, @pdt_DATE)
+		SET @vnm_DATE_YEAR	= DATEPART(YEAR, @pdt_DATE)
+		SET @vnm_DATE_HOUR	= DATEPART(HOUR, @pdt_DATE)	
+		SET @vnm_DATE_MIN	= DATEPART(MINUTE, @pdt_DATE)
+		SET @vnm_DATE_SEC	= DATEPART(SECOND, @pdt_DATE)
+
+		SET @vch_DATE_DAY	= cast(@vnm_DATE_DAY as nvarchar(5))
+		SET @vch_DATE_MONTH	= cast(@vnm_DATE_MONTH as nvarchar(5))
+		SET @vch_ADTE_YEAR	= cast(@vnm_DATE_YEAR as nvarchar(5))
+		SET @vch_DATE_HOUR	= cast(@vnm_DATE_HOUR as nvarchar(5))
+		SET @vch_DATE_MIN	= cast(@vnm_DATE_MIN as nvarchar(5))
+		SET @vch_DATE_SEC	= cast(@vnm_DATE_SEC as nvarchar(5))
+	
+		if (len(@vch_DATE_DAY)=1)	SET @vch_DATE_DAY	= '0' + @vch_DATE_DAY
+		if (len(@vch_DATE_MONTH)=1)	SET @vch_DATE_MONTH	= '0' + @vch_DATE_MONTH				
+		if (len(@vch_DATE_HOUR)=1)	SET @vch_DATE_HOUR	= '0' + @vch_DATE_HOUR
+		if (len(@vch_DATE_MIN)=1)	SET @vch_DATE_MIN	= '0' + @vch_DATE_MIN
+		if (len(@vch_DATE_SEC)=1)	SET @vch_DATE_SEC	= '0' + @vch_DATE_SEC
+		
+
+		-- example format (@pch_FORMAT = 'dd/mm/yyyy hh24:mi')
+		SET @vch_TARIH_FORMATLI = @pch_FORMAT
+
+		SET @vch_TARIH_FORMATLI =  REPLACE(@vch_TARIH_FORMATLI, 'dd', @vch_DATE_DAY)
+		SET @vch_TARIH_FORMATLI =  REPLACE(@vch_TARIH_FORMATLI, 'mm', @vch_DATE_MONTH)
+		SET @vch_TARIH_FORMATLI =  REPLACE(@vch_TARIH_FORMATLI, 'yyyy', @vch_ADTE_YEAR)
+		SET @vch_TARIH_FORMATLI =  REPLACE(@vch_TARIH_FORMATLI, 'hh24', @vch_DATE_HOUR)
+		SET @vch_TARIH_FORMATLI =  REPLACE(@vch_TARIH_FORMATLI, 'mi', @vch_DATE_MIN)			
+		SET @vch_TARIH_FORMATLI =  REPLACE(@vch_TARIH_FORMATLI, 'ss', @vch_DATE_SEC)	
+	end 
+
+	return @vch_TARIH_FORMATLI	
+	
+	
+END
+GO
+
+
+
+
+-----------------
+
+USE [TodoDB]
+GO
+
+USE [TodoDB]
+GO
+
+/****** Object:  Sequence [dbo].[SEQ_USERS]    Script Date: 27.05.2019 22:29:01 ******/
+CREATE SEQUENCE [dbo].[SEQ_USERS] 
+ AS [bigint]
+ START WITH 1
+ INCREMENT BY 1
+ MINVALUE -9223372036854775808
+ MAXVALUE 9223372036854775807
+ CACHE 
+GO
+
+
+
+
+-----------------
+
+USE [TodoDB]
+GO
+
+USE [TodoDB]
+GO
+
+/****** Object:  Sequence [dbo].[SEQ_TODO]    Script Date: 27.05.2019 22:29:11 ******/
+CREATE SEQUENCE [dbo].[SEQ_TODO] 
+ AS [bigint]
+ START WITH 1
+ INCREMENT BY 1
+ MINVALUE -9223372036854775808
+ MAXVALUE 9223372036854775807
+ CACHE 
+GO
+
+
+-----------------
+
+
+
+
+-----------------
+
+
+
+
+-----------------
