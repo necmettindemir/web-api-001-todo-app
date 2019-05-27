@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>TodoWebApi</name>
+    </assembly>
+    <members>
+        <member name="T:TodoWebApi.Controllers.AuthController">
+            <summary>
+            Login and register service
+            </summary>
+        </member>
+        <member name="M:TodoWebApi.Controllers.AuthController.#ctor(TodoDB.Data.Auth.IAuthRepo,Microsoft.Extensions.Configuration.IConfiguration,AutoMapper.IMapper)">
+            <summary>
+            This controller is used for authentication. It includes Login and Register methods
+            </summary>
+            <param name="repo">This is injected repo parameter with pre-parameterized in startup</param>
+            <param name="config">This is injected config parameter</param>
+            <param name="mapper">This is injected mapper parameter</param>
+        </member>
+        <member name="M:TodoWebApi.Controllers.AuthController.Login(TodoDB.DTOs.UserForLoginDTO)">
+            <summary>
+            This method returns JWT so that it can be used in header of requests.         
+            </summary>
+            <param name="userForLoginDTO">This parameter should be filled by client and then posted to Login method</param>
+            <returns>
+            Although in the case of fail unauthroization could be returned, 200 is returned for all requests.
+            Developer should check the ResultCode in the result object.
+            If the ResultCode in Result object is positive it means operation is successfull.
+            If the ResultCode in Result object is negative it means operation is unsuccessfull.
+            In failure case developer can show the ResultMessage to the end user
+            </returns>
+        </member>
+        <member name="M:TodoWebApi.Controllers.AuthController.Register(TodoDB.DTOs.UserForRegisterDTO)">
+            <summary>
+            This method is used to register end user
+            </summary>
+            <param name="userForRegisterDTO">This parameter must be filled to register</param>
+            <returns>This API method return 200 for each case. Developer should check the ResultCode in Result object</returns>
+        </member>
+        <member name="T:TodoWebApi.Controllers.TodoController">
+            <summary>
+            Todo operations are in this controller
+            </summary>
+        </member>
+        <member name="M:TodoWebApi.Controllers.TodoController.#ctor(TodoDB.Data.Todo.ITodoRepo,Microsoft.Extensions.Configuration.IConfiguration,AutoMapper.IMapper)">
+            <summary>
+            This controller is used for todo crud. It includes Login and Register methods
+            </summary>
+            <param name="repo">This is injected repo parameter with pre-parameterized in startup</param>
+            <param name="config">This is injected config parameter</param>
+            <param name="mapper">This is injected mapper parameter</param>
+        </member>
+        <member name="M:TodoWebApi.Controllers.TodoController.TodoSave(TodoDB.DTOs.TodoForSaveDTO)">
+            <summary>
+            to save todo
+            </summary>
+            <param name="todoForSaveDTO"></param>
+            <returns></returns>
+        </member>
+        <member name="M:TodoWebApi.Controllers.TodoController.TodoList(TodoDB.FilterParams.TodoFilterParams)">
+            <summary>
+            to list todo
+            </summary>
+            <param name="pageParams">pager parameters</param>
+            <param name="filterParams">filter parameters</param>
+            <returns></returns>
+        </member>
+    </members>
+</doc>

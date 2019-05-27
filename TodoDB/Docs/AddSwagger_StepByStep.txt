@@ -1,0 +1,80 @@
+﻿
+
+1) Nuget install SwashBuckle.AspNetCore.MicrosoftExtensions
+
+
+2) add the folloing codes into ConfigureServices in Startup
+
+
+			services.AddMvc();
+			...
+
+            services.AddSwaggerGen(
+                             c => {
+                                 c.SwaggerDoc("v1", new Swashbuckle.AspNetCore.Swagger.Info()
+                                                        {
+                                                            Title ="Todo Core API Docs",
+                                                            Description = "Produced by Swagger"
+                                                        } 
+                                             );
+                                  });
+
+			...
+
+
+3) add the folloing codes into Configure in Startup
+
+
+			app.UseMvc();
+			....
+
+            app.UseSwagger();
+            app.UseSwaggerUI(
+                    c=> {
+                        c.SwaggerEndpoint("/swagger/v1/sawgger.json", "Core API Docs");
+                    }
+                );
+
+			
+			....
+
+
+			open http://localhost:55361/swagger/  in browser
+
+
+
+4) in project properties-> build 
+
+   check    output -> xml doc file
+
+   copy file name..  TodoWebApi.xml
+
+  improve step 2
+
+  ...
+
+  			...
+
+            services.AddSwaggerGen(
+                             c => {
+                                 c.SwaggerDoc("v1", new Swashbuckle.AspNetCore.Swagger.Info()
+                                                        {
+                                                            Title ="Todo Core API Docs",
+                                                            Description = "Produced by Swagger"
+                                                        } 
+                                             );
+
+
+										var xmlPath = System.AppDomain.CurrentDomain.BaseDirectory + @"TodoWebApi.xml";
+                                        c.IncludeXmlComments(xmlPath);
+                                  });
+
+			...
+
+
+
+
+
+5) open http://localhost:55361/swagger/  in browser
+
+

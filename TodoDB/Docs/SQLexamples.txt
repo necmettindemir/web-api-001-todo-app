@@ -1,0 +1,1944 @@
+﻿
+--------
+
+#some sql examples
+
+CREATE PROCEDURE RegisterOrSaveUser	
+	  @UserId int,
+	  @Email nvarchar(50),
+      @PasswordHash nvarchar(2000),
+      @FirstName nvarchar(50),
+      @LastName nvarchar(50),
+      @City nvarchar(50),
+      @CountryId int
+AS
+BEGIN
+
+	declare @vnmUserId int	
+	
+	SET NOCOUNT ON;
+    
+	if (@UserId = 0)
+	begin
+		
+		SET @vnmUserId = NEXT VALUE FOR SEQ_USERS
+
+		insert into Users(
+				  UserId,
+				  Email,
+				  PasswordHash,
+				  FirstName,
+				  LastName,
+				  City,
+				  CountryId)
+		values(
+				  @vnmUserId,
+				  @Email,
+				  @PasswordHash,
+				  @FirstName,
+				  @LastName,
+				  @City,
+				  @CountryId)
+		
+	end
+	else
+	begin
+
+		SET @vnmUserId = @UserId
+		
+		update Users
+		set 			
+			Email		= @Email,			
+			FirstName	= @FirstName,
+			LastName	= @LastName,
+			City		= @City,
+			CountryId	= @CountryId	
+		where UserId = @vnmUserId
+
+	end
+
+	SELECT top 1 * from Users where UserId = @vnmUserId
+
+END
+GO
+
+-----------------
+
+# xml-based , single-parameter add-sql
+
+ALTER procedure [dbo].[PRC_ARAMA_KAYDET]
+(
+    @parametre nvarchar(max)
+	--@SISTEM	   nvarchar(2000)
+)
+AS
+begin
+	
+	declare 
+			--@parametre					nvarchar(max),
+
+			@vch_SONUC_KOD				int,
+			@vch_SONUC_MESAJ			nvarchar(200),
+			@vnm_ADET					int,						
+			@XmlVeri					XML,
+
+
+			--------------------------
+
+			@vnm_ARAMA_NO				bigint,						
+			@vch_TEL_NUM				nvarchar(30),			
+			--@vnm_ISLETME_NO				bigint,			
+			@vch_CALLERID_ANAHTAR		nvarchar(30)		
+
+			--@vdt_ARAMA_TARIH			datetime,						
+			--@vnm_ARAMA_TARIH_GUN		int,
+			--@vnm_ARAMA_TARIH_AY			int,
+			--@vnm_ARAMA_TARIH_YIL		int
+          			
+			--------------------------
+	declare
+			@vnm_CALLERID_NO				bigint,
+			@vnm_BULUNAN_MUSTERI_ADET		int,
+			@vnm_BULUNAN_MUSTERI_ADRES_ADET int,
+			@vch_MUSTERI_ADRES				nvarchar(2000),
+			@vnm_MUSTERI_NO					bigint,
+			@vnm_MUSTERI_ADRES_NO			bigint,
+			@vch_AD							nvarchar(100),
+			@vch_SOYAD						nvarchar(100)
+
+			---------- SISTEM ---------------
+	declare			
+			@vch_SISTEM_XML			nvarchar(max),
+			@vxml_SISTEM_XML		xml,
+
+			@vnm_POS_KULLANICI_NO	 bigint,
+			@vnm_AKTIF_ISLETME_NO	 bigint,
+			@vnm_AKTIF_FIRMA_NO      bigint,
+			@vch_DIL_KOD			 nvarchar(50),
+			@vch_ONDALIK_AYIRAC		 nvarchar(5),
+
+			@vch_DIL_TARIH_FORMAT	 nvarchar(50)	
+			---------- /SISTEM ---------------
+
+
+	begin try
+			-- ornek xml
+			--SET @parametre = 
+			
+			--		'<KAYIT_XML>
+				
+			--			<KASA_ISLEM>
+										
+			--					<KASA_ISLEM_NO>0</KASA_ISLEM_NO>
+			--					<KASA_ISLEM_TUR_NO>1</KASA_ISLEM_TUR_NO>
+			--					...							
+			--					<PARA_BIRIM_NO>0</PARA_BIRIM_NO>								
+			--					<ACIKLAMA><![CDATA[aciklama]]></ACIKLAMA>			
+
+			--		   </KASA_ISLEM>
+
+			--		  <SISTEM>
+			--				<POS_KULLANICI_NO>1</POS_KULLANICI_NO>
+			--				<AKTIF_ISLETME_NO>4</AKTIF_ISLETME_NO>
+			--				<DIL_KOD>TR</DIL_KOD>
+			--				<ONDALIK_AYIRAC>,</ONDALIK_AYIRAC>
+			--		  </SISTEM>	
+							                
+			--	 </KAYIT_XML>';
+
+
+
+
+		SET @XmlVeri = CAST(@parametre as xml)
+
+	    -----------------------------  sistem bilgileri -------------------                 
+                                        
+		SELECT @vch_SISTEM_XML	= cast(  H.query('(SISTEM)') as nvarchar(max) ) 
+		FROM @XmlVeri.nodes('/KAYIT_XML') AS A(H)
+					
+		SET @vxml_SISTEM_XML = cast(@vch_SISTEM_XML as xml)
+
+		SELECT
+		  @vnm_POS_KULLANICI_NO		= H.value('(POS_KULLANICI_NO/text())[1]',	'bigint'),
+		  @vnm_AKTIF_ISLETME_NO		= H.value('(AKTIF_ISLETME_NO/text())[1]',	'bigint'),
+		  @vnm_AKTIF_FIRMA_NO       = H.value('(AKTIF_FIRMA_NO/text())[1]',	'bigint'),
+		  @vch_DIL_KOD				= H.value('(DIL_KOD/text())[1]',			'nvarchar(50)'),
+		  @vch_ONDALIK_AYIRAC		= H.value('(ONDALIK_AYIRAC/text())[1]',		'nvarchar(5)')
+		FROM
+		   @vxml_SISTEM_XML.nodes('/SISTEM') AS A(H)
+
+
+		SET @vch_DIL_TARIH_FORMAT = dbo.FNC_DIL_TARIH_FORMAT_VER(@vch_DIL_KOD)
+		-----------------------------  /sistem bilgileri -------------------  
+
+
+
+
+
+
+		-------------------- ARAMA -----------------------------------------------
+			
+
+			SELECT
+			  			  
+			  @vnm_ARAMA_NO			=	isnull( H.value('(ARAMA_NO/text())[1]',	  'bigint'), 0 ),
+			  --@vnm_MUSTERI_NO		=	isnull( H.value('(MUSTERI_NO/text())[1]', 'bigint'), 0 ),
+			  @vch_TEL_NUM			=			H.value('(TEL_NUM/text())[1]',	  'nvarchar(30)'),	
+			  --@vnm_ISLETME_NO		=	isnull( H.value('(ISLETME_NO/text())[1]',	'bigint'), 0 ),
+			  @vch_CALLERID_ANAHTAR	=			H.value('(CALLERID_ANAHTAR/text())[1]',	'nvarchar(100)')
+			  			  
+			FROM
+			   @XmlVeri.nodes('/KAYIT_XML/ARAMA') AS A(H)
+
+			    										
+		------------------------------------------
+		--SET @vdt_ARAMA_TARIH = GETDATE()	
+
+
+		SET @vnm_MUSTERI_NO = 0 -- eger bu numaraya ait tek musteri varsa o musteriyi set edecegiz arayuzde
+		SET @vnm_MUSTERI_ADRES_NO =  0 -- eger bu numaraya ait tek musterinin tek adresi varsa o adresi set edecegiz arayuzde
+		SET @vch_AD			= ''
+		SET @vch_SOYAD		= ''
+
+		------------------------------------------
+		
+		
+
+		if (@vnm_ARAMA_NO = 0) 
+		begin
+
+			
+
+			-------------- bulunmasi gereken degerleri bulalim -----
+
+			---- TEL_NUM---
+
+			--if (isnull(@vch_TEL_NUM,'-') != '-')
+			--begin
+		
+			--	if (SUBSTRING(@vch_TEL_NUM ,1,2) = '00') -- ilk 2 karakter 00 ise at
+			--		SET @vch_TEL_NUM  = SUBSTRING(@vch_TEL_NUM ,3,len(@vch_TEL_NUM)-2)
+
+
+			--	if (SUBSTRING(@vch_TEL_NUM ,1,1) = '0') -- ilk 1 karakter 0 ise at
+			--		SET @vch_TEL_NUM  = SUBSTRING(@vch_TEL_NUM ,2,len(@vch_TEL_NUM)-1)
+
+			--end
+
+			SET @vch_TEL_NUM = dbo.FNC_TEL_NUM_VER(@vch_TEL_NUM)
+												
+			---- /TEL_NUM---
+			
+
+
+			---- MUSTERI ---
+			select @vnm_BULUNAN_MUSTERI_ADET = count(*)
+			from MUSTERI M
+			where
+				AKTIF = 1 
+			and M.MUSTERI_NO in 
+						(
+							select MUSTERI_NO from
+							(
+								select MUSTERI_NO,  count(*) as ADET from MUSTERI_ADRES MA
+								where 
+									(MA.TEL like '%'+ @vch_TEL_NUM + '%' or MA.GSM like '%'+ @vch_TEL_NUM +'%')
+								and AKTIF=1
+								group by MUSTERI_NO 
+							) T10
+						) 
+
+						
+			if (@vnm_BULUNAN_MUSTERI_ADET = 1)
+			begin
+
+				select top 1 
+						@vnm_MUSTERI_NO = MUSTERI_NO												
+						from
+							(
+								select MUSTERI_NO,  count(*) as ADET from MUSTERI_ADRES MA
+								where 
+									(MA.TEL like '%'+ @vch_TEL_NUM + '%' or MA.GSM like '%'+ @vch_TEL_NUM +'%')
+								and AKTIF=1
+								group by MUSTERI_NO 
+							) T10
+
+
+				select	
+				top 1
+					@vch_AD    = AD, 
+					@vch_SOYAD = SOYAD
+				from MUSTERI 
+				where MUSTERI_NO = @vnm_MUSTERI_NO
+
+
+				---- MUSTERI_ADRES---
+
+
+				select @vnm_BULUNAN_MUSTERI_ADRES_ADET = count(*) 
+				from MUSTERI_ADRES where MUSTERI_NO = @vnm_MUSTERI_NO and AKTIF=1
+
+				if (@vnm_BULUNAN_MUSTERI_ADRES_ADET > 0)
+				begin
+					select top 1 
+						@vnm_MUSTERI_ADRES_NO = MUSTERI_ADRES_NO											
+						from MUSTERI_ADRES 
+						where MUSTERI_NO = @vnm_MUSTERI_NO 
+						and AKTIF=1
+						order by VARSAYILAN_EH desc
+
+
+						SET @vch_MUSTERI_ADRES = dbo.FNC_MUSTERI_ADRES_VER(@vnm_MUSTERI_ADRES_NO)
+					
+				end
+
+				---- /MUSTERI_ADRES---
+
+			end
+			---- /MUSTERI ---
+
+
+			
+
+			---- CALLERID ---
+
+			select @vnm_ADET = count(*)
+			from CALLERID_SBT
+			where 
+				CALLERID_ANAHTAR = @vch_CALLERID_ANAHTAR
+			and AKTIF = 1
+
+			if (@vnm_ADET > 0) 
+			begin
+				select top 1 
+				@vnm_CALLERID_NO  = CALLERID_NO 
+				from CALLERID_SBT
+				where 
+					CALLERID_ANAHTAR = @vch_CALLERID_ANAHTAR
+				and AKTIF = 1
+			end
+			
+			---- /CALLERID ---
+
+
+
+			-------------- /bulunmasi gereken degerleri bulalim -----
+
+
+			
+			SET @vnm_ARAMA_NO = NEXT VALUE FOR SEQ_ARAMA
+
+			INSERT INTO ARAMA
+			   (				
+				   [ARAMA_NO]
+				  ,[MUSTERI_NO]
+				  ,[TEL_NUM]
+				  ,[ARAMA_TARIH]
+				  ,[ISLETME_NO]
+				  ,[CALLERID_NO]
+				  ,[BULUNAN_MUSTERI_ADET]
+				  ,[EKLEME_FIRMA_NO]
+				  ,[EKLEME_POS_KULLANICI_NO]
+				  ,[EKLEME_TARIH]				 
+				  ,[AKTIF]					
+			   )
+			 VALUES(
+				   @vnm_ARAMA_NO
+				  ,@vnm_MUSTERI_NO
+				  ,@vch_TEL_NUM
+				  ,GETDATE()--@vdt_ARAMA_TARIH
+				  ,@vnm_AKTIF_ISLETME_NO
+				  ,@vnm_CALLERID_NO
+				  ,@vnm_BULUNAN_MUSTERI_ADET
+				  ,@vnm_AKTIF_FIRMA_NO
+				  ,@vnm_POS_KULLANICI_NO
+				  ,GETDATE() --@EKLEME_TARIH				 
+				  ,1--@AKTIF
+				   )
+
+
+			SET @vch_SONUC_KOD = 1
+			SET @vch_SONUC_MESAJ ='KAYIT YAPILDI'
+
+			
+		end
+		--else
+		--begin
+				
+		--	   UPDATE [MUSTERI]
+		--	   SET
+		--		    AD = @vch_TEL_NUM
+		--		   ,SOYAD = @vch_SOYAD
+		--		   ,EPOSTA = @vch_EPOSTA
+		--		   ,DOGUM_TARIH = @vdt_ARAMA_TARIH
+		--		   ,ACIKLAMA = @vch_ACIKLAMA
+				  				    				  
+		--		  ,[GUNCELLEME_POS_KULLANICI_NO] = @vnm_POS_KULLANICI_NO
+		--		  ,[GUNCELLEME_TARIH] = GETDATE()
+		--	 WHERE  [MUSTERI_NO] = @vnm_ARAMA_NO;
+
+
+		--	SET @vch_SONUC_KOD = 2
+		--	SET @vch_SONUC_MESAJ ='GUNCELLEME YAPILDI'
+
+		--end
+					
+		-------------------- /ARAM -----------------------------------------------
+
+
+	
+
+
+
+
+
+		-------------------------------------------------------------------	         					
+		-- table[0]	
+		
+		select 
+			isnull(@vnm_BULUNAN_MUSTERI_ADET,0) AS BULUNAN_MUSTERI_ADET,
+			isnull(@vnm_MUSTERI_NO,0)			AS MUSTERI_NO,
+			isnull(@vnm_BULUNAN_MUSTERI_ADRES_ADET,0) as BULUNAN_MUSTERI_ADRES_ADET,
+			isnull(@vnm_MUSTERI_ADRES_NO,0)		AS MUSTERI_ADRES_NO,
+			@vch_MUSTERI_ADRES					AS MUSTERI_ADRES,
+			@vch_AD								AS AD,
+			@vch_SOYAD							AS SOYAD,
+			isnull(@vnm_CALLERID_NO,0)			AS CALLERID_NO
+				
+		--select 
+		--top 1
+		--M.*,
+		 
+		--	DATEPART(DAY,M.DOGUM_TARIH) DOGUM_TARIH_GUN,
+		--	DATEPART(MONTH,M.DOGUM_TARIH) DOGUM_TARIH_AY,
+		--	DATEPART(YEAR,M.DOGUM_TARIH) DOGUM_TARIH_YIL
+
+		--from MUSTERI M
+		--where M.AKTIF=1		
+		--and M.MUSTERI_NO =  @vnm_ARAMA_NO	
+
+		-------------------------------------------------------------------
+
+	    		
+
+	end try
+	begin catch		
+	
+				
+			-- table[0]
+			select * from ( select 1 dummy ) ref_dil_liste			
+			
+
+
+
+			SET @vch_SONUC_KOD = -99
+			SET @vch_SONUC_MESAJ = 
+				'ERROR number: ' + cast(ERROR_NUMBER() as nvarchar(50)) + 
+				'ERROR message: ' + cast(ERROR_MESSAGE() as nvarchar(2000))	
+									
+	end catch
+
+
+
+
+	--table[1]
+	select * from 
+	(
+		select  
+				@vnm_ARAMA_NO	 as  PK_NO,
+				@vch_SONUC_KOD	 as SONUC_KOD,  
+				@vch_SONUC_MESAJ as SONUC_MESAJ,
+				1		 as TOPLAM_KAYIT_ADET,
+				1		 as SAYFA_KAYIT_ADET
+
+	) ref_sonuc
+
+
+end
+
+------------------
+
+
+
+#xml-based, single-parameter  list-sql
+
+
+ALTER procedure [dbo].[PRC_ARAMA_LISTE]
+(
+    @parametre nvarchar(max)
+	--@SISTEM	   nvarchar(2000)
+)
+AS
+begin
+
+--				ornek @parametre:
+
+				--<LISTE_XML>
+    --            <FILTRE>
+				--	<DIL_NO>1</DIL_NO>
+				--	<DIL_AD></DIL_AD>
+				--	<DIL_KOD></DIL_KOD>
+				--	<DIL_KULTUR></DIL_KULTUR>
+    --            </FILTRE>
+    --            <SAYFA>
+				--	<SAYFA_NO>1</SAYFA_NO>
+				--	<SIRA_KOLON>DIL_NO</SIRA_KOLON>
+				--	<SIRA_ASC_DESC>DESC</SIRA_ASC_DESC>
+				--	<SAYFA_KAYIT_ADET_ISTENEN>100</SAYFA_KAYIT_ADET_ISTENEN>
+    --            </SAYFA>
+				--<SISTEM>
+				--	<POS_KULLANICI_NO>1</POS_KULLANICI_NO>
+				--	<AKTIF_ISLETME_NO>4</AKTIF_ISLETME_NO>
+				--	<DIL_KOD>TR</DIL_KOD>
+				--	<ONDALIK_AYIRAC>,</ONDALIK_AYIRAC>
+    --            </SISTEM>				                
+    --           </LISTE_XML>
+	
+	declare 
+			--@parametre					nvarchar(max),
+			@vnm_SONUC_KOD				int,
+			@vch_SONUC_MESAJ			nvarchar(200),
+
+			@vnm_ADET					int,
+						
+			@XmlVeri					XML,
+			
+			 @vnm_ARAMA_NO		bigint,
+			 @vch_TEL_NUM       nvarchar(30),
+
+			 @vnm_MUSTERI_NO	 bigint,
+			 @vch_MUSTERI_KOD	 nvarchar(100),
+			 @vch_AD			 nvarchar(100),
+			 @vch_SOYAD		 nvarchar(100)
+			  
+			
+
+
+			-------- procedure icinde sql islemlerinde kullanilan degiskenler ----------
+	declare
+			@vch_SQL_STMT             nvarchar(max),
+			@vch_SQL_WHERE            nvarchar(max),
+			@vch_SQL_WHERE_2          nvarchar(max),
+			@vch_SQL_ORDER            nvarchar(max),
+			@vch_SQL_WHERE_WITH_ORDER nvarchar(max),
+     
+			@vch_SELECT               nvarchar(max),
+			@vch_FROM                 nvarchar(max),
+     
+			@vch_SQL_STMT_CNT         nvarchar(max),
+			@vch_TIRNAK               nvarchar(10),
+
+			@vnm_TOPLAM_KAYIT_ADET	  int,
+			@vnm_UST_SINIR			  bigint,
+			@vnm_ALT_SINIR			  bigint
+			
+			
+			-------- /procedure icinde sql islemlerinde kullanilan degiskenler ----------
+
+			---------- SISTEM ---------------
+	declare			
+			@vch_SISTEM_XML			nvarchar(max),
+			@vxml_SISTEM_XML		xml,
+
+			@vnm_POS_KULLANICI_NO	 bigint,
+			@vnm_AKTIF_ISLETME_NO	 bigint,
+			@vch_DIL_KOD			 nvarchar(50),
+			@vch_ONDALIK_AYIRAC		 nvarchar(5),
+			@vch_DIL_TARIH_FORMAT	 nvarchar(50)
+			---------- /SISTEM ---------------
+
+			
+			
+			---------- SAYFA ---------------
+	declare
+			@vch_SAYFA_XML					nvarchar(max),
+			@vxml_SAYFA_XML					xml,
+
+
+			@vnm_SAYFA_NO					int,
+			@vch_SIRA_KOLON					nvarchar(50),
+			@vch_SIRA_ASC_DESC				nvarchar(50),
+			@vnm_SAYFA_KAYIT_ADET_ISTENEN	int			
+
+			---------- /SAYFA ---------------
+
+
+	begin try
+		
+		--SET @parametre = 
+		--		'<LISTE_XML>
+		--			<FILTRE>
+		--			</FILTRE>
+		--			<SAYFA>
+		--				<SAYFA_NO>1</SAYFA_NO>
+		--				<SIRA_KOLON>DIL_NO</SIRA_KOLON>
+		--				<SIRA_ASC_DESC>DESC</SIRA_ASC_DESC>
+		--				<SAYFA_KAYIT_ADET_ISTENEN>100</SAYFA_KAYIT_ADET_ISTENEN>
+		--			</SAYFA>
+		--			<SISTEM>
+		--				<POS_KULLANICI_NO>1</POS_KULLANICI_NO>
+		--				<AKTIF_ISLETME_NO>4</AKTIF_ISLETME_NO>
+		--				<DIL_KOD>TR</DIL_KOD>
+		--				<ONDALIK_AYIRAC>,</ONDALIK_AYIRAC>
+		--			</SISTEM>				                
+  --             </LISTE_XML>';
+
+		SET @XmlVeri = CAST(@parametre as xml)
+
+	    -----------------------------  sistem bilgileri -------------------                 
+                                        
+		SELECT @vch_SISTEM_XML		= cast(  H.query('(SISTEM)') as nvarchar(max)) FROM @XmlVeri.nodes('/LISTE_XML') AS A(H)
+					
+		SET @vxml_SISTEM_XML		= cast(@vch_SISTEM_XML as xml)
+
+		SELECT
+		  @vnm_POS_KULLANICI_NO		= H.value('(POS_KULLANICI_NO/text())[1]',	'bigint'),
+		  @vnm_AKTIF_ISLETME_NO		= H.value('(AKTIF_ISLETME_NO/text())[1]',	'bigint'),
+		  @vch_DIL_KOD				= H.value('(DIL_KOD/text())[1]',			'nvarchar(50)'),
+		  @vch_ONDALIK_AYIRAC		= H.value('(ONDALIK_AYIRAC/text())[1]',		'nvarchar(5)')
+		FROM
+		   @vxml_SISTEM_XML.nodes('/SISTEM') AS A(H)
+
+
+		   --select   top 1
+		   --@vch_DIL_TARIH_FORMAT  = DIL_TARIH_FORMAT 
+		   --from DIL
+		   --where DIL_KOD = @vch_DIL_KOD 
+		   --and AKTIF=17
+
+		   SET @vch_DIL_TARIH_FORMAT = dbo.FNC_DIL_TARIH_FORMAT_VER(@vch_DIL_KOD)
+
+		   
+
+		-----------------------------  /sistem bilgileri -------------------  
+
+
+	    -----------------------------  sayfa bilgileri -------------------                 
+                                        
+		SELECT @vch_SAYFA_XML	= cast(  H.query('(SAYFA)') as nvarchar(max)) FROM @XmlVeri.nodes('/LISTE_XML') AS A(H)
+		
+		SET @vxml_SAYFA_XML		= cast(@vch_SAYFA_XML as xml)
+
+		SELECT
+		  @vnm_SAYFA_NO					= H.value('(SAYFA_NO/text())[1]',					'int'),			  
+		  @vch_SIRA_KOLON				= H.value('(SIRA_KOLON/text())[1]',					'nvarchar(50)'),
+		  @vch_SIRA_ASC_DESC			= H.value('(SIRA_ASC_DESC/text())[1]',				'nvarchar(50)'),
+		  @vnm_SAYFA_KAYIT_ADET_ISTENEN	= H.value('(SAYFA_KAYIT_ADET_ISTENEN/text())[1]',	'int')		
+		FROM
+			@vxml_SAYFA_XML.nodes('/SAYFA') AS A(H)
+						
+		-----------------------------  /sayfa bilgileri -------------------  
+
+		-------------------------------------------------------------------
+			
+			SELECT
+			 
+			 
+
+			  @vnm_ARAMA_NO	     =  H.value('(ARAMA_NO/text())[1]', 'bigint'),
+			  @vch_TEL_NUM		 =  H.value('(TEL_NUM/text())[1]',	'nvarchar(30)')	,
+
+			  @vnm_MUSTERI_NO	 =  H.value('(MUSTERI_NO/text())[1]', 'bigint'),
+			  @vch_MUSTERI_KOD   =  H.value('(MUSTERI_KOD/text())[1]',	'nvarchar(50)'),
+			  @vch_AD			 =  H.value('(AD/text())[1]',		'nvarchar(50)'),
+			  @vch_SOYAD		 =  H.value('(SOYAD/text())[1]',	'nvarchar(50)')
+			 
+			  		  
+
+			FROM
+			   @XmlVeri.nodes('/LISTE_XML/FILTRE') AS A(H)
+
+		-------------------------------------------------------------------
+
+		--select @vnm_adet = count(*) from SIPARIS
+		--where AKTIF=1
+		--and ISLETME_NO = @vnm_AKTIF_ISLETME_NO
+		--and MASA_NO = @vnm_MASA_NO
+		----and TAHSILAT_DURUM_NO in '(' + @vch_TAHSILAT_DURUM_NOLAR + ')'						
+		--and TAHSILAT_DURUM_NO in 
+		--					(
+		--					CASE @vnm_MASA_NO
+		--						WHEN  1 THEN '1'
+		--						WHEN  2 THEN '2,3,4'
+		--						ELSE TAHSILAT_DURUM_NO
+		--					END
+		--					)
+
+		
+
+		--------------------
+		SET @vnm_ALT_SINIR = (@vnm_SAYFA_NO-1) * @vnm_SAYFA_KAYIT_ADET_ISTENEN;
+		SET @vnm_UST_SINIR  = @vnm_ALT_SINIR + @vnm_SAYFA_KAYIT_ADET_ISTENEN; 
+
+		-------------------
+
+		SET @vch_TIRNAK = ''''; 
+
+		SET @vch_SELECT = ' A.ARAMA_NO, A.TEL_NUM, A.ISLETME_NO, 
+									A.ARAMA_TARIH, A.EKLEME_TARIH, A.CALLERID_NO, 
+							isnull(M.MUSTERI_NO, 0)  MUSTERI_NO,
+							isnull(M.AD, ' + @vch_TIRNAK + ' ' + @vch_TIRNAK  + ')  AD,
+							isnull(M.SOYAD, ' + @vch_TIRNAK + ' ' + @vch_TIRNAK  + ')  SOYAD,
+							isnull(M.MUSTERI_KOD, ' + @vch_TIRNAK + ' ' + @vch_TIRNAK  + ')  MUSTERI_KOD ' ; 
+						  --' ST.SIPARIS_TUR_AD, SD.SIPARIS_DURUM_AD, TD.TAHSILAT_DURUM_AD, SD.SIPARIS_DURUM_RENK_HEX_KOD, TD.TAHSILAT_DURUM_RENK_HEX_KOD, PB.PARA_BIRIM_KOD  ' ;
+						
+
+		SET @vch_FROM   = ' ARAMA A LEFT OUTER JOIN MUSTERI M ';
+
+		------------------------------------------------------------------------
+
+		if (    (@vch_SIRA_ASC_DESC is null) or (@vch_SIRA_ASC_DESC = '') or  
+				( (upper(@vch_SIRA_ASC_DESC) != 'ASC') and (upper(@vch_SIRA_ASC_DESC) != 'DESC') )
+		    )
+        begin
+		    SET @vch_SIRA_ASC_DESC = 'ASC';                                
+		end;
+           
+		    
+            
+		if ((@vch_SIRA_KOLON is null) or  (@vch_SIRA_KOLON = '--')  or  (@vch_SIRA_KOLON = '') ) 		
+		begin
+            SET @vch_SQL_ORDER = ' order by ARAMA_NO ' + @vch_SIRA_ASC_DESC;            
+		end
+		else
+		begin                      
+            SET @vch_SQL_ORDER = ' order by ' + @vch_SIRA_KOLON + ' ' + @vch_SIRA_ASC_DESC;            
+		end
+		
+		------------------------------------------------------------------------
+
+		SET @vch_SQL_WHERE = ' ON  M.MUSTERI_NO = A.MUSTERI_NO and ' + 
+						     ' A.AKTIF=1 ';	
+
+		if (@vnm_ARAMA_NO !=0) 
+		begin
+			SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and A.ARAMA_NO = ' + cast(@vnm_MUSTERI_NO as nvarchar(50));                 
+		end
+
+	   if (@vch_TEL_NUM != '') 
+		begin                                                                                                                                               
+            SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and  A.TEL_NUM like ' + @vch_TIRNAK + '%' + @vch_TEL_NUM + '%' + @vch_TIRNAK; 
+		end
+
+
+		if (@vnm_MUSTERI_NO !=0) 
+		begin
+			SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and M.MUSTERI_NO = ' + cast(@vnm_MUSTERI_NO as nvarchar(50));                 
+		end
+
+
+		
+		if (@vch_MUSTERI_KOD != '') 
+		begin                                                                                                                                               
+            SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and  M.MUSTERI_KOD like ' + @vch_TIRNAK + '%' + @vch_SOYAD + '%' + @vch_TIRNAK; 
+		end
+
+		if (@vch_AD != '') 
+		begin                                                                                                                                               
+            SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and  M.AD like ' + @vch_TIRNAK + '%' + @vch_AD + '%' + @vch_TIRNAK; 
+		end
+
+		if (@vch_SOYAD != '') 
+		begin                                                                                                                                               
+            SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and  M.SOYAD like ' + @vch_TIRNAK + '%' + @vch_SOYAD + '%' + @vch_TIRNAK; 
+		end
+
+
+
+
+		if (@vnm_AKTIF_ISLETME_NO !=0) 
+		begin
+			SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and A.ISLETME_NO = ' + cast(@vnm_AKTIF_ISLETME_NO as nvarchar(50));                 
+		end
+
+		--if (@vch_GSM_TEL_P1 != '') 
+		--begin                                                                                                                                               
+  --          SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and  ( ' + 
+									
+		--										' ( M.MUSTERI_NO in ( SELECT MUSTERI_NO from MUSTERI_ADRES MA where MA.GSM_P1 like ' + @vch_TIRNAK + '%' + @vch_GSM_TEL_P1 + '%' + @vch_TIRNAK + ' and MA.AKTIF=1) ) ' + 
+		--										' or ' + 
+		--										' ( M.MUSTERI_NO in ( SELECT MUSTERI_NO from MUSTERI_ADRES MA where MA.TEL_P1 like ' + @vch_TIRNAK + '%' + @vch_GSM_TEL_P1 + '%' + @vch_TIRNAK + ' and MA.AKTIF=1) ) ' + 
+		--										+')'; 
+		--end
+
+
+		--if (@vch_GSM_TEL_P2 != '') 
+		--begin                                                                                                                                               
+  --          SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and  ( ' + 
+									
+		--										' ( M.MUSTERI_NO in ( SELECT MUSTERI_NO from MUSTERI_ADRES MA where MA.GSM_P2 like ' + @vch_TIRNAK + '%' + @vch_GSM_TEL_P2 + '%' + @vch_TIRNAK + ' and MA.AKTIF=1) ) ' + 
+		--										' or ' + 
+		--										' ( M.MUSTERI_NO in ( SELECT MUSTERI_NO from MUSTERI_ADRES MA where MA.TEL_P2 like ' + @vch_TIRNAK + '%' + @vch_GSM_TEL_P2 + '%' + @vch_TIRNAK + ' and MA.AKTIF=1) ) ' + 
+		--										+')'; 
+		--end
+
+		
+		
+
+
+		SET @vch_SQL_WHERE_2 = ' 1=1   ';
+
+
+		--SET @vch_SQL_STMT =  ' select rownum rnum, T50.*  ' +
+		SET @vch_SQL_STMT =  ' select T50.*  ' +
+                           ' from ' +
+                           ' ( ' +  
+                                'select T20.* from ' +
+                                '(' +                                                                     
+                                    ' select ' +  @vch_SELECT + ' from  ' + @vch_FROM +
+                                    --' where ' + @vch_SQL_WHERE +
+									' ' + @vch_SQL_WHERE +
+                                 ') T20 '  +
+                                 'where ' + @vch_SQL_WHERE_2 +
+                            ') T50 '; 
+            
+
+
+
+		SET @vch_SQL_STMT_CNT =  N'select @vnm_ADET = COUNT(*) from ( '   + @vch_SQL_STMT   + ' ) T60 ' ;
+
+
+
+--insert into z_Debug(val,opr_date,reason) values(@vch_SQL_STMT, GETDATE(),  'arama cnt')
+
+--select * from z_Debug
+--delete from z_Debug
+
+		EXEC sp_executesql @vch_SQL_STMT_CNT , N'@vnm_ADET INT OUTPUT', @vnm_ADET OUTPUT
+
+		
+		SET @vnm_TOPLAM_KAYIT_ADET = @vnm_ADET;
+
+           
+           
+        if (@vnm_TOPLAM_KAYIT_ADET = 0) 
+		begin
+           
+			select * from ( select 1 dummy ) ref_dil_liste	
+
+			SET @vnm_SONUC_KOD =-100
+			SET @vch_SONUC_MESAJ = 'KAYIT BULUNAMADI!'
+
+		end
+		else
+		begin
+
+						 
+				--select ROW_NUMBER() OVER (ORDER BY SEMT_NO) AS rnum  from  SEMT
+				--select ROW_NUMBER() OVER (ORDER BY (Select 100)) AS rnum,
+				--SEMT_AD  from  SEMT order by SEMT_AD desc
+								
+
+
+					 SET @vch_SQL_WHERE_WITH_ORDER = @vch_SQL_WHERE + ' ' + @vch_SQL_ORDER;
+                        
+					--SET @vch_SQL_STMT = ' select rownum rnum, T50.* from ' +
+					--SET @vch_SQL_STMT = ' select  ROW_NUMBER() OVER (ORDER BY (Select 100)) rnum, T50.* from ' +
+					SET @vch_SQL_STMT = ' select  ROW_NUMBER() OVER ('+ @vch_SQL_ORDER +') rnum, T50.* from ' +
+									    '( ' +    
+											'select T20.* from ' +
+											'(' +                                                                                                               
+												' select ' + @vch_SELECT + ' from ' + @vch_FROM +                                            
+												--' where ' + @vch_SQL_WHERE_WITH_ORDER +
+												--' where ' + @vch_SQL_WHERE +
+												'  ' + @vch_SQL_WHERE +
+											 ') T20 '  + 
+											 'where ' + @vch_SQL_WHERE_2 +
+										') T50 ';
+
+
+
+					--SET @vch_SQL_STMT = ' select T60.*, '  +
+					SET @vch_SQL_STMT = ' select  top 500   T60.*, '  +
+                   
+						' (select top 1 CALLERID_ANAHTAR from CALLERID_SBT C where C.CALLERID_NO = T60.CALLERID_NO ) as CALLERID_ANAHTAR,  ' + 
+						' dbo.FNC_FORMATLI_TARIH_VER(T60.EKLEME_TARIH, '+ @vch_TIRNAK +'dd/mm/yyyy'+  ' hh24:mi' +  @vch_TIRNAK +')  as EKLEME_TARIH_FORMATLI, ' +
+						' dbo.FNC_FORMATLI_TARIH_VER(T60.ARAMA_TARIH, '+ @vch_TIRNAK +'dd/mm/yyyy'+  ' hh24:mi' +  @vch_TIRNAK +')  as ARAMA_TARIH_FORMATLI ' +
+               
+                         ' from '           +
+                         ' ( '              +
+                                @vch_SQL_STMT  +
+                         ' ) T60 '           
+                         --' where rnum>'  +  cast(@vnm_ALT_SINIR as nvarchar(50)) +  ' and rnum<= ' + cast(@vnm_UST_SINIR as nvarchar(50));
+
+	--insert into z_Debug(val,opr_date,reason) values(@vch_SQL_STMT, GETDATE(),  'arama select liste')
+
+--select * from z_Debug
+--delete from z_Debug
+
+					EXEC sp_executesql @vch_SQL_STMT 
+			
+					SET @vnm_SONUC_KOD = 1
+					SET @vch_SONUC_MESAJ = 'OK'
+
+        end
+              
+
+		-------------------------------------------------------------------
+			         					
+		---- table[0]
+		--select * from SIPARIS
+		--where AKTIF=1
+		--and ISLETME_NO = @vnm_AKTIF_ISLETME_NO
+		--and MASA_NO = @vnm_MASA_NO
+		--and TAHSILAT_DURUM_NO !=1
+
+		-------------------------------------------------------------------
+
+
+
+	end try
+	begin catch		
+	
+				
+			-- table[0]
+			select * from ( select 1 dummy ) ref_dil_liste			
+			
+
+
+			SET @vnm_SONUC_KOD = -99
+			SET @vch_SONUC_MESAJ = 
+				'ERROR number: ' + cast(ERROR_NUMBER() as nvarchar(50)) + 
+				'ERROR message: ' + cast(ERROR_MESSAGE() as nvarchar(2000))	
+									
+	end catch
+
+
+
+
+	--table[1]
+	select * from 
+	(
+		select  @vnm_SONUC_KOD	 as SONUC_KOD,  
+				@vch_SONUC_MESAJ as SONUC_MESAJ,
+				@vnm_ADET		 as TOPLAM_KAYIT_ADET,
+				@vnm_ADET		 as SAYFA_KAYIT_ADET
+
+	) ref_sonuc
+
+
+end
+
+
+----------
+
+
+# xml list cursor
+
+ALTER procedure [dbo].[PRC_YRL_KYDT_BIRIM_TUR_SBT]
+(
+    @parametre nvarchar(max),
+	@SISTEM	   nvarchar(2000)	    
+)
+AS
+begin
+
+--						ornek @parametre:
+
+
+
+--						   <SATIRLAR>
+--							  <SATIR>
+--								 <RNUM><![CDATA[1]]></RNUM>
+--								 <BIRIM_TUR_NO><![CDATA[1]]></BIRIM_TUR_NO>
+--								 <BIRIM_TUR_AD><![CDATA[Ev]]></BIRIM_TUR_AD>
+--								 <AKTIF><![CDATA[1]]></AKTIF>
+--								 <GOSTERIM_SIRA_NUM><![CDATA[30]]></GOSTERIM_SIRA_NUM>
+--							  </SATIR>
+--							  <SATIR>
+--								 <RNUM><![CDATA[2]]></RNUM>
+--								 <BIRIM_TUR_NO><![CDATA[2]]></BIRIM_TUR_NO>
+--								 <BIRIM_TUR_AD><![CDATA[İş]]></BIRIM_TUR_AD>
+--								 <AKTIF><![CDATA[1]]></AKTIF>
+--								 <GOSTERIM_SIRA_NUM><![CDATA[10]]></GOSTERIM_SIRA_NUM>
+--							  </SATIR>
+--							  <SATIR>
+--								 <RNUM><![CDATA[3]]></RNUM>
+--								 <BIRIM_TUR_NO><![CDATA[3]]></BIRIM_TUR_NO>
+--								 <BIRIM_TUR_AD><![CDATA[Kampüs]]></BIRIM_TUR_AD>
+--								 <AKTIF><![CDATA[1]]></AKTIF>
+--								 <GOSTERIM_SIRA_NUM><![CDATA[20]]></GOSTERIM_SIRA_NUM>
+--							  </SATIR>
+--							  <SATIR>
+--								 <RNUM><![CDATA[4]]></RNUM>
+--								 <BIRIM_TUR_NO><![CDATA[99]]></BIRIM_TUR_NO>
+--								 <BIRIM_TUR_AD><![CDATA[Diğer]]></BIRIM_TUR_AD>
+--								 <AKTIF><![CDATA[1]]></AKTIF>
+--								 <GOSTERIM_SIRA_NUM><![CDATA[990]]></GOSTERIM_SIRA_NUM>
+--							  </SATIR>
+--						   </SATIRLAR>
+
+	
+	declare 
+			@vch_SONUC_KOD int,
+			@vch_SONUC_MESAJ nvarchar(200),
+
+			@vnm_ADET int,
+			@XmlSatirlar XML,
+
+			@vnm_BIRIM_TUR_NO	int,
+			@vch_BIRIM_TUR_AD	nvarchar(100),
+			@vnm_AKTIF			int,
+			@vnm_GOSTERIM_SIRA_NUM int
+
+
+	begin try
+			-------
+
+			SET @XmlSatirlar = CAST(@parametre as xml)
+
+			declare cur_satirlar cursor for
+			SELECT
+			   H.value('(BIRIM_TUR_NO/text())[1]',  'int')				AS 'BIRIM_TUR_NO',
+			   H.value('(BIRIM_TUR_AD/text())[1]',  'nvarchar(100)')	AS 'BIRIM_TUR_AD',
+			   H.value('(AKTIF/text())[1]',  'int')						AS 'AKTIF',                   
+			   H.value('(GOSTERIM_SIRA_NUM/text())[1]',  'int')			AS 'GOSTERIM_SIRA_NUM'
+			FROM
+			   @XmlSatirlar.nodes('/SATIRLAR/SATIR') AS A(H)
+            
+            
+			open cur_satirlar
+            
+				FETCH NEXT FROM cur_satirlar  INTO @vnm_BIRIM_TUR_NO ,@vch_BIRIM_TUR_AD, @vnm_AKTIF, @vnm_GOSTERIM_SIRA_NUM
+            
+				WHILE (@@FETCH_STATUS=0)
+				begin
+
+					--print '@vnm_BIRIM_TUR_NO: ' + cast(@vnm_BIRIM_TUR_NO as nvarchar(100))
+					--print '@vch_BIRIM_TUR_AD: ' + @vch_BIRIM_TUR_AD
+					--print '@vnm_AKTIF: ' + cast(@vnm_AKTIF as nvarchar(100))
+					--print '@vnm_GOSTERIM_SIRA_NUM: ' + cast(@vnm_GOSTERIM_SIRA_NUM as nvarchar(100))
+					--print ' '
+
+					-------  insert|update islemi ------------------
+
+					select @vnm_ADET = count(*)
+					from BIRIM_TUR_SBT where BIRIM_TUR_NO = @vnm_BIRIM_TUR_NO
+
+					if (@vnm_ADET = 0)
+					begin
+
+						insert into BIRIM_TUR_SBT(BIRIM_TUR_NO, BIRIM_TUR_AD, AKTIF, GOSTERIM_SIRA_NUM)
+						values(@vnm_BIRIM_TUR_NO, @vch_BIRIM_TUR_AD, @vnm_AKTIF, @vnm_GOSTERIM_SIRA_NUM)
+
+						--print ' inserted '
+						--print ' '
+						--print ' '
+
+					end
+					else
+					begin
+						update BIRIM_TUR_SBT
+						set 
+							BIRIM_TUR_AD = @vch_BIRIM_TUR_AD, 
+							AKTIF = @vnm_AKTIF, 
+							GOSTERIM_SIRA_NUM = @vnm_GOSTERIM_SIRA_NUM
+						where 
+							BIRIM_TUR_NO = @vnm_BIRIM_TUR_NO
+
+							print ' updated '
+					end
+
+
+					-------  /insert|update islemi ------------------
+
+					FETCH NEXT FROM cur_satirlar  INTO @vnm_BIRIM_TUR_NO ,@vch_BIRIM_TUR_AD, @vnm_AKTIF, @vnm_GOSTERIM_SIRA_NUM
+				
+				end
+            
+			close cur_satirlar
+			DEALLOCATE  cur_satirlar
+			-------
+         
+				--END		
+
+		-------------------------------------------------------------------
+
+	    SET @vch_SONUC_KOD =1
+		SET @vch_SONUC_MESAJ = 'OK'
+
+	end try
+	begin catch						
+			
+			SET @vch_SONUC_KOD = -99
+			SET @vch_SONUC_MESAJ = 
+				'ERROR number: ' + cast(ERROR_NUMBER() as nvarchar(50)) + 
+				'ERROR message: ' + cast(ERROR_MESSAGE() as nvarchar(2000))						
+	end catch
+
+
+	-- table[0]
+	select * from ( select 1 dummy ) ref_liste
+
+
+	--table[1]
+	select * from 
+	(
+		select  @vch_SONUC_KOD	 as SONUC_KOD,  @vch_SONUC_MESAJ as SONUC_MESAJ
+	) ref_sonuc
+
+
+
+end
+
+
+-----------------------
+
+
+
+#select with page interal example
+
+ALTER  procedure [dbo].[PRC_MUSTERI_LISTE]
+(
+    @parametre nvarchar(max)
+	--@SISTEM	   nvarchar(2000)
+)
+AS
+begin
+
+--				ornek @parametre:
+
+				--<LISTE_XML>
+    --            <FILTRE>
+				--	<DIL_NO>1</DIL_NO>
+				--	<DIL_AD></DIL_AD>
+				--	<DIL_KOD></DIL_KOD>
+				--	<DIL_KULTUR></DIL_KULTUR>
+    --            </FILTRE>
+    --            <SAYFA>
+				--	<SAYFA_NO>1</SAYFA_NO>
+				--	<SIRA_KOLON>DIL_NO</SIRA_KOLON>
+				--	<SIRA_ASC_DESC>DESC</SIRA_ASC_DESC>
+				--	<SAYFA_KAYIT_ADET_ISTENEN>100</SAYFA_KAYIT_ADET_ISTENEN>
+    --            </SAYFA>
+				--<SISTEM>
+				--	<POS_KULLANICI_NO>1</POS_KULLANICI_NO>
+				--	<AKTIF_ISLETME_NO>4</AKTIF_ISLETME_NO>
+				--	<DIL_KOD>TR</DIL_KOD>
+				--	<ONDALIK_AYIRAC>,</ONDALIK_AYIRAC>
+    --            </SISTEM>				                
+    --           </LISTE_XML>
+	
+	declare 
+			--@parametre					nvarchar(max),
+			@vnm_SONUC_KOD				int,
+			@vch_SONUC_MESAJ			nvarchar(200),
+
+			@vnm_ADET					int,
+						
+			@XmlVeri					XML,
+
+
+			--@vnm_SIPARIS_NO				int,		
+			--@vnm_MASA_NO				bigint,
+			--@vch_SIPARIS_TUR_NOLAR		nvarchar(50),
+			--@vch_TAHSILAT_DURUM_NOLAR	nvarchar(50),
+			--@vch_SIPARIS_DURUM_NOLAR	nvarchar(50),
+
+			--@vnm_SIPARIS_GRUP_NO		int,
+
+			--@vnm_SIPARIS_GUN			int,
+			--@vnm_SIPARIS_AY				int,
+			--@vnm_SIPARIS_YIL			int
+
+			 @vnm_MUSTERI_NO	 bigint,
+
+			  @vch_AD			 nvarchar(100),
+			  @vch_SOYAD		 nvarchar(100),
+			  --@vch_GSM_TEL_P1	 nvarchar(20),
+			  --@vch_GSM_TEL_P2	 nvarchar(20)
+			  @vch_GSM_TEL		 nvarchar(30)
+			
+
+
+			-------- procedure icinde sql islemlerinde kullanilan degiskenler ----------
+	declare
+			@vch_SQL_STMT             nvarchar(max),
+			@vch_SQL_WHERE            nvarchar(max),
+			@vch_SQL_WHERE_2          nvarchar(max),
+			@vch_SQL_ORDER            nvarchar(max),
+			@vch_SQL_WHERE_WITH_ORDER nvarchar(max),
+     
+			@vch_SELECT               nvarchar(max),
+			@vch_FROM                 nvarchar(max),
+     
+			@vch_SQL_STMT_CNT         nvarchar(max),
+			@vch_TIRNAK               nvarchar(10),
+
+			@vnm_TOPLAM_KAYIT_ADET	  int,
+			@vnm_UST_SINIR			  bigint,
+			@vnm_ALT_SINIR			  bigint
+			
+			
+			-------- /procedure icinde sql islemlerinde kullanilan degiskenler ----------
+
+			---------- SISTEM ---------------
+	declare			
+			@vch_SISTEM_XML			nvarchar(max),
+			@vxml_SISTEM_XML		xml,
+
+			@vnm_POS_KULLANICI_NO	 bigint,
+			@vnm_AKTIF_ISLETME_NO	 bigint,
+			@vch_DIL_KOD			 nvarchar(50),
+			@vch_ONDALIK_AYIRAC		 nvarchar(5),
+			@vch_DIL_TARIH_FORMAT	 nvarchar(50)
+			---------- /SISTEM ---------------
+
+			
+			
+			---------- SAYFA ---------------
+	declare
+			@vch_SAYFA_XML					nvarchar(max),
+			@vxml_SAYFA_XML					xml,
+
+
+			@vnm_SAYFA_NO					int,
+			@vch_SIRA_KOLON					nvarchar(50),
+			@vch_SIRA_ASC_DESC				nvarchar(50),
+			@vnm_SAYFA_KAYIT_ADET_ISTENEN	int			
+
+			---------- /SAYFA ---------------
+
+
+	begin try
+		
+		--SET @parametre = 
+		--		'<LISTE_XML>
+		--			<FILTRE>
+		--			</FILTRE>
+		--			<SAYFA>
+		--				<SAYFA_NO>1</SAYFA_NO>
+		--				<SIRA_KOLON>DIL_NO</SIRA_KOLON>
+		--				<SIRA_ASC_DESC>DESC</SIRA_ASC_DESC>
+		--				<SAYFA_KAYIT_ADET_ISTENEN>100</SAYFA_KAYIT_ADET_ISTENEN>
+		--			</SAYFA>
+		--			<SISTEM>
+		--				<POS_KULLANICI_NO>1</POS_KULLANICI_NO>
+		--				<AKTIF_ISLETME_NO>4</AKTIF_ISLETME_NO>
+		--				<DIL_KOD>TR</DIL_KOD>
+		--				<ONDALIK_AYIRAC>,</ONDALIK_AYIRAC>
+		--			</SISTEM>				                
+  --             </LISTE_XML>';
+
+		SET @XmlVeri = CAST(@parametre as xml)
+
+	    -----------------------------  sistem bilgileri -------------------                 
+                                        
+		SELECT @vch_SISTEM_XML		= cast(  H.query('(SISTEM)') as nvarchar(max)) FROM @XmlVeri.nodes('/LISTE_XML') AS A(H)
+					
+		SET @vxml_SISTEM_XML		= cast(@vch_SISTEM_XML as xml)
+
+		SELECT
+		  @vnm_POS_KULLANICI_NO		= H.value('(POS_KULLANICI_NO/text())[1]',	'bigint'),
+		  @vnm_AKTIF_ISLETME_NO		= H.value('(AKTIF_ISLETME_NO/text())[1]',	'bigint'),
+		  @vch_DIL_KOD				= H.value('(DIL_KOD/text())[1]',			'nvarchar(50)'),
+		  @vch_ONDALIK_AYIRAC		= H.value('(ONDALIK_AYIRAC/text())[1]',		'nvarchar(5)')
+		FROM
+		   @vxml_SISTEM_XML.nodes('/SISTEM') AS A(H)
+
+
+		   --select   top 1
+		   --@vch_DIL_TARIH_FORMAT  = DIL_TARIH_FORMAT 
+		   --from DIL
+		   --where DIL_KOD = @vch_DIL_KOD 
+		   --and AKTIF=17
+
+		   SET @vch_DIL_TARIH_FORMAT = dbo.FNC_DIL_TARIH_FORMAT_VER(@vch_DIL_KOD)
+
+		   
+
+		-----------------------------  /sistem bilgileri -------------------  
+
+
+	    -----------------------------  sayfa bilgileri -------------------                 
+                                        
+		SELECT @vch_SAYFA_XML	= cast(  H.query('(SAYFA)') as nvarchar(max)) FROM @XmlVeri.nodes('/LISTE_XML') AS A(H)
+		
+		SET @vxml_SAYFA_XML		= cast(@vch_SAYFA_XML as xml)
+
+		SELECT
+		  @vnm_SAYFA_NO					= H.value('(SAYFA_NO/text())[1]',					'int'),			  
+		  @vch_SIRA_KOLON				= H.value('(SIRA_KOLON/text())[1]',					'nvarchar(50)'),
+		  @vch_SIRA_ASC_DESC			= H.value('(SIRA_ASC_DESC/text())[1]',				'nvarchar(50)'),
+		  @vnm_SAYFA_KAYIT_ADET_ISTENEN	= H.value('(SAYFA_KAYIT_ADET_ISTENEN/text())[1]',	'int')		
+		FROM
+			@vxml_SAYFA_XML.nodes('/SAYFA') AS A(H)
+						
+		-----------------------------  /sayfa bilgileri -------------------  
+
+		-------------------------------------------------------------------
+			
+			SELECT
+			  --@vnm_SIPARIS_NO			= isnull (H.value('(SIPARIS_NO/text())[1]',			'bigint'),0),
+			  --@vnm_MASA_NO				= isnull (H.value('(MASA_NO/text())[1]',			'bigint'),0),
+			  --@vch_SIPARIS_TUR_NOLAR	= H.value('(SIPARIS_TUR_NOLAR/text())[1]',			'nvarchar(50)'),
+			  --@vch_TAHSILAT_DURUM_NOLAR = H.value('(TAHSILAT_DURUM_NOLAR/text())[1]',		'nvarchar(50)'),
+			  --@vch_SIPARIS_DURUM_NOLAR  = H.value('(SIPARIS_DURUM_NOLAR/text())[1]',		'nvarchar(50)'),
+
+			  --@vnm_SIPARIS_GRUP_NO		= isnull (H.value('(SIPARIS_GRUP_NO/text())[1]',	 'int'),0),
+
+			  --@vnm_SIPARIS_GUN			= isnull (H.value('(SIPARIS_GUN/text())[1]',			'int'),0),
+			  --@vnm_SIPARIS_AY			= isnull (H.value('(SIPARIS_AY/text())[1]',			    'int'),0),
+			  --@vnm_SIPARIS_YIL			= isnull (H.value('(SIPARIS_YIL/text())[1]',			'int'),0)
+
+			  @vnm_MUSTERI_NO	 =  H.value('(MUSTERI_NO/text())[1]', 'bigint'),
+
+			  @vch_AD			 =  H.value('(AD/text())[1]',		'nvarchar(50)'),
+			  @vch_SOYAD		 =  H.value('(SOYAD/text())[1]',	'nvarchar(50)'),
+
+			  --@vch_GSM_TEL_P1		 =  H.value('(GSM_TEL_P1/text())[1]',	'nvarchar(20)'),
+			  --@vch_GSM_TEL_P2		 =  H.value('(GSM_TEL_P2/text())[1]',	'nvarchar(20)')
+
+			  @vch_GSM_TEL		 =  H.value('(GSM_TEL/text())[1]',	'nvarchar(30)')			  
+
+			FROM
+			   @XmlVeri.nodes('/LISTE_XML/FILTRE') AS A(H)
+
+		-------------------------------------------------------------------
+
+		--select @vnm_adet = count(*) from SIPARIS
+		--where AKTIF=1
+		--and ISLETME_NO = @vnm_AKTIF_ISLETME_NO
+		--and MASA_NO = @vnm_MASA_NO
+		----and TAHSILAT_DURUM_NO in '(' + @vch_TAHSILAT_DURUM_NOLAR + ')'						
+		--and TAHSILAT_DURUM_NO in 
+		--					(
+		--					CASE @vnm_MASA_NO
+		--						WHEN  1 THEN '1'
+		--						WHEN  2 THEN '2,3,4'
+		--						ELSE TAHSILAT_DURUM_NO
+		--					END
+		--					)
+
+		
+
+		--------------------
+
+		--if (isnull(@vch_GSM_TEL,'-') != '-')
+		--begin
+		
+		--	if (SUBSTRING(@vch_GSM_TEL ,1,2) = '00') -- ilk 2 karakter 00 ise at
+		--		SET @vch_GSM_TEL  = SUBSTRING(@vch_GSM_TEL ,3,len(@vch_GSM_TEL)-2)
+
+
+		--	if (SUBSTRING(@vch_GSM_TEL ,1,1) = '0') -- ilk 1 karakter 0 ise at
+		--		SET @vch_GSM_TEL  = SUBSTRING(@vch_GSM_TEL ,2,len(@vch_GSM_TEL)-1)
+
+		--end
+
+		SET @vch_GSM_TEL = dbo.FNC_TEL_NUM_VER(@vch_GSM_TEL)
+		--------------------
+
+
+		--------------------
+		SET @vnm_ALT_SINIR = (@vnm_SAYFA_NO-1) * @vnm_SAYFA_KAYIT_ADET_ISTENEN;
+		SET @vnm_UST_SINIR  = @vnm_ALT_SINIR + @vnm_SAYFA_KAYIT_ADET_ISTENEN; 
+
+		-------------------
+
+		SET @vch_TIRNAK = ''''; 
+
+		SET @vch_SELECT = ' M.* ' ; 
+						  --' ST.SIPARIS_TUR_AD, SD.SIPARIS_DURUM_AD, TD.TAHSILAT_DURUM_AD, SD.SIPARIS_DURUM_RENK_HEX_KOD, TD.TAHSILAT_DURUM_RENK_HEX_KOD, PB.PARA_BIRIM_KOD  ' ;
+						
+
+		SET @vch_FROM   = ' MUSTERI M ';
+
+		------------------------------------------------------------------------
+
+		if (    (@vch_SIRA_ASC_DESC is null) or (@vch_SIRA_ASC_DESC = '') or  
+				( (upper(@vch_SIRA_ASC_DESC) != 'ASC') and (upper(@vch_SIRA_ASC_DESC) != 'DESC') )
+		    )
+        begin
+		    SET @vch_SIRA_ASC_DESC = 'ASC';                                
+		end;
+           
+		    
+            
+		if ((@vch_SIRA_KOLON is null) or  (@vch_SIRA_KOLON = '--')  or  (@vch_SIRA_KOLON = '') ) 		
+		begin
+            SET @vch_SQL_ORDER = ' order by MUSTERI_NO ' + @vch_SIRA_ASC_DESC;            
+		end
+		else
+		begin                      
+            SET @vch_SQL_ORDER = ' order by ' + @vch_SIRA_KOLON + ' ' + @vch_SIRA_ASC_DESC;            
+		end
+		
+		------------------------------------------------------------------------
+
+		SET @vch_SQL_WHERE = ' 1=1 ' + 
+						     ' and M.AKTIF=1 ';	
+
+
+		if (@vnm_MUSTERI_NO !=0) 
+		begin
+			SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and M.MUSTERI_NO = ' + cast(@vnm_MUSTERI_NO as nvarchar(50));                 
+		end
+
+
+		if (@vnm_AKTIF_ISLETME_NO !=0) 
+		begin
+			SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and M.ISLETME_NO = ' + cast(@vnm_AKTIF_ISLETME_NO as nvarchar(50));                 
+		end
+
+
+		if (@vch_AD != '') 
+		begin                                                                                                                                               
+            SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and  M.AD like ' + @vch_TIRNAK + '%' + @vch_AD + '%' + @vch_TIRNAK; 
+		end
+
+		if (@vch_SOYAD != '') 
+		begin                                                                                                                                               
+            SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and  M.SOYAD like ' + @vch_TIRNAK + '%' + @vch_SOYAD + '%' + @vch_TIRNAK; 
+		end
+
+
+		--if (@vch_GSM_TEL_P1 != '') 
+		--begin                                                                                                                                               
+  --          SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and  ( ' + 
+									
+		--										' ( M.MUSTERI_NO in ( SELECT MUSTERI_NO from MUSTERI_ADRES MA where MA.GSM_P1 like ' + @vch_TIRNAK + '%' + @vch_GSM_TEL_P1 + '%' + @vch_TIRNAK + ' and MA.AKTIF=1) ) ' + 
+		--										' or ' + 
+		--										' ( M.MUSTERI_NO in ( SELECT MUSTERI_NO from MUSTERI_ADRES MA where MA.TEL_P1 like ' + @vch_TIRNAK + '%' + @vch_GSM_TEL_P1 + '%' + @vch_TIRNAK + ' and MA.AKTIF=1) ) ' + 
+		--										+')'; 
+		--end
+
+
+		--if (@vch_GSM_TEL_P2 != '') 
+		--begin                                                                                                                                               
+  --          SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and  ( ' + 
+									
+		--										' ( M.MUSTERI_NO in ( SELECT MUSTERI_NO from MUSTERI_ADRES MA where MA.GSM_P2 like ' + @vch_TIRNAK + '%' + @vch_GSM_TEL_P2 + '%' + @vch_TIRNAK + ' and MA.AKTIF=1) ) ' + 
+		--										' or ' + 
+		--										' ( M.MUSTERI_NO in ( SELECT MUSTERI_NO from MUSTERI_ADRES MA where MA.TEL_P2 like ' + @vch_TIRNAK + '%' + @vch_GSM_TEL_P2 + '%' + @vch_TIRNAK + ' and MA.AKTIF=1) ) ' + 
+		--										+')'; 
+		--end
+
+		
+		if (@vch_GSM_TEL != '') 
+		begin                                                                                                                                               
+            SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and  ( ' + 
+									
+												' ( M.MUSTERI_NO in ( SELECT MUSTERI_NO from MUSTERI_ADRES MA where MA.GSM like ' + @vch_TIRNAK + '%' + @vch_GSM_TEL + '%' + @vch_TIRNAK + ' and MA.AKTIF=1) ) ' + 
+												' or ' + 
+												' ( M.MUSTERI_NO in ( SELECT MUSTERI_NO from MUSTERI_ADRES MA where MA.TEL like ' + @vch_TIRNAK + '%' + @vch_GSM_TEL + '%' + @vch_TIRNAK + ' and MA.AKTIF=1) ) ' + 
+												+')'; 
+		end
+
+
+		--if (@vch_GSM_TEL_P2 != '') 
+		--begin                                                                                                                                               
+  --          SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and  ( ' + 
+									
+		--										' ( M.GSM_P2 like ' + @vch_TIRNAK + '%' + @vch_GSM_TEL_P2 + '%' + @vch_TIRNAK + ') ' + 
+		--										' or ' + 
+		--										' ( M.TEL_P2 like ' + @vch_TIRNAK + '%' + @vch_GSM_TEL_P2 + '%' + @vch_TIRNAK + ') ' + 
+
+		--										+')'; 
+		--end
+
+		--if (@vnm_MASA_NO !=0)
+		--begin
+  --          SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and S.MASA_NO = ' + cast(@vnm_MASA_NO as nvarchar(50))
+		--end;       
+
+
+		----if (@vch_SIPARIS_TUR_NOLAR != '') 
+		----begin
+                        
+  ----          vch_MASA_KOD := NLS_UPPER(vch_MASA_KOD,'NLS_SORT = ' || vch_dil_nls_sort ); 
+                                                                                                           
+  ----          vch_sql_where := vch_sql_where || ' and ' ||  ' nls_upper(M.MASA_KOD,' || vch_tirnak || 'NLS_SORT = ' || vch_dil_nls_sort || 
+  ----                           vch_tirnak || ')'  || ' like ' || vch_tirnak || '%' || vch_MASA_KOD || '%' || vch_tirnak;                                                                                      
+		----end
+
+		--if (@vnm_SIPARIS_GRUP_NO != 0)  -- 1: masa  2: internet-tel-self
+		--begin                        
+  --          SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and ST.SIPARIS_GRUP_NO = ' + cast(@vnm_SIPARIS_GRUP_NO as nvarchar(50))
+		--end
+      
+		
+
+		--if (@vch_SIPARIS_TUR_NOLAR != '0') 
+		--begin                        
+  --          SET @vch_SQL_WHERE = @vch_SQL_WHERE + ' and ST.SIPARIS_TUR_NO in ' + '(' + @vch_SIPARIS_TUR_NOLAR +')'
+		--end
+      
+
+
+
+		--if ((@vnm_SIPARIS_GUN > 0) and (@vnm_SIPARIS_AY > 0) and (@vnm_SIPARIS_YIL > 0))
+		--begin
+			 
+		--	  SET @vch_SQL_WHERE = @vch_SQL_WHERE + '  and DATEPART(dd,S.SIPARIS_TARIH)   = ' + cast(@vnm_SIPARIS_GUN as nvarchar(50))
+		--	  SET @vch_SQL_WHERE = @vch_SQL_WHERE + '  and DATEPART(mm,S.SIPARIS_TARIH)   = ' + cast(@vnm_SIPARIS_AY as nvarchar(50))
+		--	  SET @vch_SQL_WHERE = @vch_SQL_WHERE + '  and DATEPART(yyyy,S.SIPARIS_TARIH)   = ' + cast(@vnm_SIPARIS_YIL as nvarchar(50))
+
+		--end
+		
+
+
+		SET @vch_SQL_WHERE_2 = ' 1=1   ';
+
+
+		--SET @vch_SQL_STMT =  ' select rownum rnum, T50.*  ' +
+		SET @vch_SQL_STMT =  ' select T50.*  ' +
+                           ' from ' +
+                           ' ( ' +  
+                                'select T20.* from ' +
+                                '(' +                                                                     
+                                    ' select ' +  @vch_SELECT + ' from  ' + @vch_FROM +
+                                    ' where ' + @vch_SQL_WHERE +
+                                 ') T20 '  +
+                                 'where ' + @vch_SQL_WHERE_2 +
+                            ') T50 '; 
+            
+
+
+
+		SET @vch_SQL_STMT_CNT =  N'select @vnm_ADET = COUNT(*) from ( '   + @vch_SQL_STMT   + ' ) T60 ' ;
+
+--insert into z_Debug(val,opr_date,reason) values(@vch_SQL_STMT, GETDATE(),  'musteri cnt')
+
+		EXEC sp_executesql @vch_SQL_STMT_CNT , N'@vnm_ADET INT OUTPUT', @vnm_ADET OUTPUT
+
+		
+		SET @vnm_TOPLAM_KAYIT_ADET = @vnm_ADET;
+
+           
+           
+        if (@vnm_TOPLAM_KAYIT_ADET = 0) 
+		begin
+           
+			select * from ( select 1 dummy ) ref_dil_liste	
+
+			SET @vnm_SONUC_KOD =-100
+			SET @vch_SONUC_MESAJ = 'KAYIT BULUNAMADI!'
+
+		end
+		else
+		begin
+
+						 
+				--select ROW_NUMBER() OVER (ORDER BY SEMT_NO) AS rnum  from  SEMT
+				--select ROW_NUMBER() OVER (ORDER BY (Select 100)) AS rnum,
+				--SEMT_AD  from  SEMT order by SEMT_AD desc
+								
+
+
+					 SET @vch_SQL_WHERE_WITH_ORDER = @vch_SQL_WHERE + ' ' + @vch_SQL_ORDER;
+                        
+					--SET @vch_SQL_STMT = ' select rownum rnum, T50.* from ' +
+					--SET @vch_SQL_STMT = ' select  ROW_NUMBER() OVER (ORDER BY (Select 100)) rnum, T50.* from ' +
+					SET @vch_SQL_STMT = ' select  ROW_NUMBER() OVER ('+ @vch_SQL_ORDER +') rnum, T50.* from ' +
+									    '( ' +    
+											'select T20.* from ' +
+											'(' +                                                                                                               
+												' select ' + @vch_SELECT + ' from ' + @vch_FROM +                                            
+												--' where ' + @vch_SQL_WHERE_WITH_ORDER +
+												' where ' + @vch_SQL_WHERE +
+											 ') T20 '  + 
+											 'where ' + @vch_SQL_WHERE_2 +
+										') T50 ';
+
+
+
+					SET @vch_SQL_STMT = ' select T60.*, '  +
+                   
+						' dbo.FNC_FORMATLI_TARIH_VER(T60.EKLEME_TARIH, '+ @vch_TIRNAK +'dd/mm/yyyy'+  ' hh24:mi' +  @vch_TIRNAK +')  as EKLEME_TARIH_FORMATLI, ' +
+
+						' dbo.FNC_NUMBERDEN_STR_VER(  dbo.FNC_MUSTERI_SIPARIS_TOP_TUTAR_VER(T60.MUSTERI_NO) , ' + @vch_TIRNAK + @vch_ONDALIK_AYIRAC + @vch_TIRNAK +')  as MUSTERI_SIPARIS_TOP_TUT_FRMTL, ' +
+						' dbo.FNC_NUMBERDEN_STR_VER(  dbo.FNC_MUSTERI_BORC_TOPLAM_TUTAR_VER(T60.MUSTERI_NO) , ' + @vch_TIRNAK + @vch_ONDALIK_AYIRAC + @vch_TIRNAK +')  as MUSTERI_BORC_TOPLAM_TUT_FRMTL, ' +
+						' dbo.FNC_NUMBERDEN_STR_VER(  dbo.FNC_MUSTERI_TAH_TOP_TUTAR_VER(T60.MUSTERI_NO) , ' + @vch_TIRNAK + @vch_ONDALIK_AYIRAC + @vch_TIRNAK +')	   as MUSTERI_TAH_TOP_TUTAR_FRMTL, ' +
+						' dbo.FNC_NUMBERDEN_STR_VER(  dbo.FNC_MUSTERI_KALAN_BORC_TOP_VER(T60.MUSTERI_NO) , ' + @vch_TIRNAK + @vch_ONDALIK_AYIRAC + @vch_TIRNAK +')	   as MUSTERI_KALAN_BORC_TOP_FRMTL, ' +
+
+						
+						' dbo.FNC_NUMBERDEN_STR_VER(  dbo.FNC_MUSTERI_OO_SIP_TOP_TUT_VER(T60.MUSTERI_NO) , ' + @vch_TIRNAK + @vch_ONDALIK_AYIRAC + @vch_TIRNAK +')  as MUSTERI_OO_SIP_TOP_TUT_FRMTL, ' +
+						' dbo.FNC_NUMBERDEN_STR_VER(  dbo.FNC_MUSTERI_TAH_OO_TOP_TUTAR_VER(T60.MUSTERI_NO) , ' + @vch_TIRNAK + @vch_ONDALIK_AYIRAC + @vch_TIRNAK +')  as MUSTERI_TAH_OO_TOP_TUT_FRMTL, ' +
+						' dbo.FNC_NUMBERDEN_STR_VER(  dbo.FNC_MUSTERI_TAH_OO_IADE_TOP_TUTAR_VER(T60.MUSTERI_NO) , ' + @vch_TIRNAK + @vch_ONDALIK_AYIRAC + @vch_TIRNAK +')  as MUSTERI_TAH_OO_IADE_TOP_TUT_FRMTL, ' +
+						' dbo.FNC_NUMBERDEN_STR_VER(  dbo.FNC_MUSTERI_TAH_OO_KALAN_TOP_VER(T60.MUSTERI_NO) , ' + @vch_TIRNAK + @vch_ONDALIK_AYIRAC + @vch_TIRNAK +')  as MUSTERI_TAH_OO_KALAN_TOP_TUT_FRMTL ' +
+
+						
+						--' dbo.FNC_NUMBERDEN_STR_VER(  dbo.FNC_SIPARIS_TOPLAM_TUTAR_VER(T60.SIPARIS_NO) , ' + @vch_TIRNAK + @vch_ONDALIK_AYIRAC + @vch_TIRNAK +')  as SIPARIS_TOPLAM_TUTAR_FORMATLI, ' +
+						
+						--' dbo.FNC_FORMATLI_TARIH_VER(T60.SIPARIS_TARIH, '+ @vch_TIRNAK + @vch_DIL_TARIH_FORMAT + @vch_TIRNAK +')  as SIPARIS_TARIH_FORMATLI, ' +						
+						--' dbo.FNC_FORMATLI_TARIH_VER(T60.SIPARIS_TARIH, '+ @vch_TIRNAK +'hh24:mi'+ @vch_TIRNAK +')  as SIPARIS_SAAT_FORMATLI ' +
+									
+                    
+        --' PKG_PRO.FNC_CALISAN_AD_SOYAD_VER(T60.EKLEME_YON_KULLANICI_NO) KAYDEDEN, ' ||    
+        --' nvl(to_char(T60.EKLEME_TARIH,' || vch_tirnak || vch_dil_tarih_format || ' hh24:mi' || vch_tirnak || '),' || vch_tirnak || vch_tirnak || ') EKLEME_TARIH_FORMATLI, ' ||                                   
+        --' to_char(PKG_PRO.fnc_tarih_ver(T60.GUNCELLEME_TARIH,T60.EKLEME_TARIH) , '|| vch_tirnak || vch_dil_tarih_format ||' HH24:mi:ss'|| vch_tirnak || ')   KONTROL_GUN_TARIH_FORMATLI  ' ||                                                                                                  
+                                       
+                         ' from '           +
+                         ' ( '              +
+                                @vch_SQL_STMT  +
+                         ' ) T60 '           
+                         --' where rnum>'  +  cast(@vnm_ALT_SINIR as nvarchar(50)) +  ' and rnum<= ' + cast(@vnm_UST_SINIR as nvarchar(50));
+
+	--insert into z_Debug(val,opr_date,reason) values(@vch_SQL_STMT, GETDATE(),  'siparis liste')
+
+					EXEC sp_executesql @vch_SQL_STMT 
+			
+					SET @vnm_SONUC_KOD = 1
+					SET @vch_SONUC_MESAJ = 'OK'
+
+        end
+              
+
+		-------------------------------------------------------------------
+			         					
+		---- table[0]
+		--select * from SIPARIS
+		--where AKTIF=1
+		--and ISLETME_NO = @vnm_AKTIF_ISLETME_NO
+		--and MASA_NO = @vnm_MASA_NO
+		--and TAHSILAT_DURUM_NO !=1
+
+		-------------------------------------------------------------------
+
+
+
+	end try
+	begin catch		
+	
+				
+			-- table[0]
+			select * from ( select 1 dummy ) ref_dil_liste			
+			
+
+
+			SET @vnm_SONUC_KOD = -99
+			SET @vch_SONUC_MESAJ = 
+				'ERROR number: ' + cast(ERROR_NUMBER() as nvarchar(50)) + 
+				'ERROR message: ' + cast(ERROR_MESSAGE() as nvarchar(2000))	
+									
+	end catch
+
+
+
+
+	--table[1]
+	select * from 
+	(
+		select  @vnm_SONUC_KOD	 as SONUC_KOD,  
+				@vch_SONUC_MESAJ as SONUC_MESAJ,
+				@vnm_ADET		 as TOPLAM_KAYIT_ADET,
+				@vnm_ADET		 as SAYFA_KAYIT_ADET
+
+	) ref_sonuc
+
+
+end
+
+
+------------------
+
+
+# convert yyyy-mm-dd hh24:mi:ss  str to date
+CREATE  FUNCTION [dbo].[fncGetDateFromStr](@vch_date_str nvarchar(50))
+RETURNS datetime
+AS
+BEGIN
+	
+	DECLARE @vdt_date datetime
+		
+	if (@vch_date_str!='')
+		--SET @vdt_date = Convert(datetime,'2016-09-21 13:33:55',120) 
+		SET @vdt_date = Convert(datetime,@vch_date_str,120) 
+	else
+		SET @vdt_date = null
+
+	
+	RETURN @vdt_date
+
+END
+
+
+#convert date to any format like dd/mm/yyyy hh24:mi:ss
+
+create FUNCTION [dbo].[fncGetFormattedDateAsStr]
+(
+   
+	@pdt_DATE			datetime,
+	@pch_FORMAT			nvarchar(50)
+)
+RETURNS nvarchar(50)
+AS
+
+BEGIN
+	
+	declare
+		@vnm_DATE_DAY		int,
+		@vnm_DATE_MONTH		int,
+		@vnm_DATE_YEAR		int,
+		@vnm_DATE_HOUR		int,
+		@vnm_DATE_MIN		int,
+		@vnm_DATE_SEC		int,
+
+		@vch_DATE_DAY		nvarchar(10),
+		@vch_DATE_MONTH		nvarchar(10),
+		@vch_ADTE_YEAR		nvarchar(10),
+		@vch_DATE_HOUR		nvarchar(10),
+		@vch_DATE_MIN		nvarchar(10),
+		@vch_DATE_SEC		nvarchar(10),
+		
+		@vch_TARIH_FORMATLI	nvarchar(50)
+
+
+	SET @vch_TARIH_FORMATLI = ''
+
+	if (@pdt_DATE is not null)
+	begin
+		SET @vnm_DATE_DAY	= DATEPART(DAY, @pdt_DATE)
+		SET @vnm_DATE_MONTH	= DATEPART(MONTH, @pdt_DATE)
+		SET @vnm_DATE_YEAR	= DATEPART(YEAR, @pdt_DATE)
+		SET @vnm_DATE_HOUR	= DATEPART(HOUR, @pdt_DATE)	
+		SET @vnm_DATE_MIN	= DATEPART(MINUTE, @pdt_DATE)
+		SET @vnm_DATE_SEC	= DATEPART(SECOND, @pdt_DATE)
+
+		SET @vch_DATE_DAY	= cast(@vnm_DATE_DAY as nvarchar(5))
+		SET @vch_DATE_MONTH	= cast(@vnm_DATE_MONTH as nvarchar(5))
+		SET @vch_ADTE_YEAR	= cast(@vnm_DATE_YEAR as nvarchar(5))
+		SET @vch_DATE_HOUR	= cast(@vnm_DATE_HOUR as nvarchar(5))
+		SET @vch_DATE_MIN	= cast(@vnm_DATE_MIN as nvarchar(5))
+		SET @vch_DATE_SEC	= cast(@vnm_DATE_SEC as nvarchar(5))
+	
+		if (len(@vch_DATE_DAY)=1)	SET @vch_DATE_DAY	= '0' + @vch_DATE_DAY
+		if (len(@vch_DATE_MONTH)=1)	SET @vch_DATE_MONTH	= '0' + @vch_DATE_MONTH				
+		if (len(@vch_DATE_HOUR)=1)	SET @vch_DATE_HOUR	= '0' + @vch_DATE_HOUR
+		if (len(@vch_DATE_MIN)=1)	SET @vch_DATE_MIN	= '0' + @vch_DATE_MIN
+		if (len(@vch_DATE_SEC)=1)	SET @vch_DATE_SEC	= '0' + @vch_DATE_SEC
+		
+
+		-- example format (@pch_FORMAT = 'dd/mm/yyyy hh24:mi')
+		SET @vch_TARIH_FORMATLI = @pch_FORMAT
+
+		SET @vch_TARIH_FORMATLI =  REPLACE(@vch_TARIH_FORMATLI, 'dd', @vch_DATE_DAY)
+		SET @vch_TARIH_FORMATLI =  REPLACE(@vch_TARIH_FORMATLI, 'mm', @vch_DATE_MONTH)
+		SET @vch_TARIH_FORMATLI =  REPLACE(@vch_TARIH_FORMATLI, 'yyyy', @vch_ADTE_YEAR)
+		SET @vch_TARIH_FORMATLI =  REPLACE(@vch_TARIH_FORMATLI, 'hh24', @vch_DATE_HOUR)
+		SET @vch_TARIH_FORMATLI =  REPLACE(@vch_TARIH_FORMATLI, 'mi', @vch_DATE_MIN)			
+		SET @vch_TARIH_FORMATLI =  REPLACE(@vch_TARIH_FORMATLI, 'ss', @vch_DATE_SEC)	
+	end 
+
+	return @vch_TARIH_FORMATLI	
+	
+	
+END
+
+------
+
+#test TodoSave
+
+
+declare 
+	@TodoId int,
+    @UserId int,
+    @TodoTypeId int,
+    @TodoStateId int,
+    @TodoHeader nvarchar(100),
+    @TodoText nvarchar(2000),
+    @TodoDateStr nvarchar(50),
+	@LanguageCode varchar(10)
+
+	SET @TodoId = 0 
+    SET @UserId = 2
+    SET @TodoTypeId = 2
+    SET @TodoStateId = 1
+    SET @TodoHeader = 'aaaa2'
+    SET @TodoText = 'bbb2'
+    SET @TodoDateStr = '2019-06-01 23:00:05'
+	SET @LanguageCode = 'EN'
+
+
+exec[dbo].[TodoSave]	
+	@TodoId,
+    @UserId,
+    @TodoTypeId,
+    @TodoStateId,
+    @TodoHeader, 
+    @TodoText,
+    @TodoDateStr,
+	@LanguageCode
+
+
+	--select  * from TODO
+
+-----
+
+
+#sp todo save
+
+alter PROCEDURE [dbo].[TodoSave]	
+
+	@TodoId int,
+    @UserId int,
+    @TodoTypeId int,
+    @TodoStateId int,
+    @TodoHeader nvarchar(100),
+    @TodoText nvarchar(2000),
+    @TodoDateStr nvarchar(50),
+	@LanguageCode varchar(10)
+
+AS
+BEGIN
+	
+	SET NOCOUNT ON;
+
+	DECLARE @vnmTodoId int,
+			@vdtTodoDate datetime,
+			@vnmResultCode int,
+			@vchResultMeessage nvarchar(2000)
+	
+	------------------------------- step 1 - date conversion -----------------------
+	BEGIN TRY
+
+			----date format should be 120 code in MSSQL --> yyyy-mm-dd HH:mi:ss 
+			----exp : '2016-09-21 13:33:55'			
+			SET @vdtTodoDate  = [dbo].[fncGetDateFromStr](@TodoDateStr)
+
+	END TRY
+	BEGIN CATCH
+
+			SET @vnmResultCode  = -10
+			SET @vchResultMeessage  = 'date format error!'
+
+			select 1 
+
+			select @vnmResultCode     as ResultCode,
+				   @vchResultMeessage as ResultMessage
+
+			RETURN 
+
+	END CATCH
+	------------------------------- /step 1 - date conversion -----------------------
+
+
+
+
+	------------------------------- step 2 - INSERT or UPD operation -----------------------
+	BEGIN TRY
+
+			-- suppose there are meny CRUD operations
+			BEGIN TRANSACTION t1
+
+					if (@TodoId = 0)
+					begin
+		
+						SET @vnmTodoId = NEXT VALUE FOR SEQ_TODO
+
+						insert into Todo(
+									TodoId,
+									UserId,
+									TodoTypeId,
+									TodoStateId,
+									TodoHeader,
+									TodoText,
+									TodoDate,
+									[CreateDate]
+								  )
+						values(
+									@vnmTodoId,
+									@UserId,
+									@TodoTypeId,
+									@TodoStateId,
+									@TodoHeader,
+									@TodoText,
+									@vdtTodoDate,
+									getdate()
+								  )
+
+						SET @vnmResultCode  = 1 --> 1 : INSERT
+
+					end
+					else
+					begin
+
+						SET @vnmTodoId = @TodoId
+		
+						update Todo
+						set 						 					
+									TodoTypeId = @TodoTypeId,
+									TodoStateId = @TodoStateId,
+									TodoHeader = @TodoHeader,
+									TodoText = @TodoText,
+									TodoDate = @vdtTodoDate
+						
+						where TodoId = @vnmTodoId
+
+						SET @vnmResultCode  = 2 --> 2 : UPDATE
+
+					end
+
+									
+			COMMIT transaction t1
+
+			SET @vchResultMeessage  = 'OK'
+
+			SELECT 
+				top 1 T.*,
+					  [dbo].[fncGetFormattedDateAsStr](T.TodoDate,'dd/mm/yyyy HH24:mi:ss') as TodoDateStr,
+					  TS.TodoState,
+					  TT.TodoType
+			from Todo T, TodoState TS, TodoType TT
+			where 
+			T.TodoId = @vnmTodoId
+			and T.TodoStateId = TS.TodoStateId
+			and T.TodoTypeId = TT.TodoTypeId
+
+			select @vnmResultCode     as ResultCode,
+				   @vchResultMeessage as ResultMessage
+
+	END TRY
+	BEGIN CATCH
+
+			-- Transaction uncommittable
+			IF (XACT_STATE()) = -1
+				ROLLBACK TRANSACTION t1
+ 
+			-- Transaction committable
+			IF (XACT_STATE()) = 1
+				COMMIT TRANSACTION t1
+
+
+			SET @vnmResultCode  = -10
+			SET @vchResultMeessage  = 'insert/upd error ' + cast(ERROR_NUMBER() as nvarchar(50)) +  ' ' + ERROR_MESSAGE()
+
+			select 1 
+
+			select 
+				@vnmResultCode     as ResultCode,
+				@vchResultMeessage as ResultMessage
+
+	END CATCH
+	
+	------------------------------- /step 2 - INSERT or UPD operation -----------------------
+
+
+
+END
+
+
+--------------
+
+#select with paging
+
+
+select T60.* from 
+(
+   select  ROW_NUMBER() OVER (order by TodoId) rnum, T50.* from 
+	( 
+		select T20.* from 
+		(
+			select T.*, 
+					dbo.fncGetFormattedDateAsStr(T.TodoDate, 'dd/mm/yyyy HH24:mi:ss') as TodoDateStr,
+			TT.TodoType, TS.TodoState 
+			from Todo T, TodoType TT, TodoState TS
+			Where 1=1
+			and T.UserId = 2
+			and T.TodoTypeId = TT.TodoTypeId
+			and T.TodoStateId = TS.TodoStateId
+		 ) T20 
+		 where 1=1 
+	) T50
+) T60 where rnum>4 and rnum<=6
